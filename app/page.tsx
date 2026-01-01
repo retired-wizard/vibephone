@@ -11,6 +11,11 @@ export default function Home() {
       hour12: true 
     }).toUpperCase()
   })
+  
+  const [currentApp, setCurrentApp] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [appHtml, setAppHtml] = useState<string | null>(null)
+  const [loadingMessage, setLoadingMessage] = useState('')
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -23,6 +28,71 @@ export default function Home() {
     }, 1000)
     return () => clearInterval(interval)
   }, [])
+
+  const loadingMessages = [
+    'Optimizing rounded corners...',
+    'Convincing the AI it\'s a calculator...',
+    'Recompiling nostalgia modules...',
+    'Calculating takeover probability: 42%...',
+    'Bringing back skeuomorphism...',
+    'Erasing the notch...',
+    'Rebuilding from scratch...'
+  ]
+
+  const handleAppClick = async (appName: string) => {
+    // Check cache first
+    const cached = localStorage.getItem(`app_${appName}`)
+    if (cached) {
+      setAppHtml(cached)
+      setCurrentApp(appName)
+      return
+    }
+
+    // Show loading screen
+    setLoading(true)
+    setCurrentApp(appName)
+    setAppHtml(null)
+    
+    // Rotate loading messages
+    let messageIndex = 0
+    const messageInterval = setInterval(() => {
+      messageIndex = (messageIndex + 1) % loadingMessages.length
+      setLoadingMessage(loadingMessages[messageIndex])
+    }, 1500)
+    setLoadingMessage(loadingMessages[0])
+
+    try {
+      // Call API to generate app
+      const response = await fetch('/api/generate-app', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appName })
+      })
+      
+      const data = await response.json()
+      
+      if (data.html) {
+        // Cache it
+        localStorage.setItem(`app_${appName}`, data.html)
+        setAppHtml(data.html)
+      } else {
+        console.error('Failed to generate app:', data.error)
+        setCurrentApp(null)
+      }
+    } catch (error) {
+      console.error('Error generating app:', error)
+      setCurrentApp(null)
+    } finally {
+      clearInterval(messageInterval)
+      setLoading(false)
+    }
+  }
+
+  const handleHomeClick = () => {
+    setCurrentApp(null)
+    setAppHtml(null)
+    setLoading(false)
+  }
 
   // Apps that are easy for AI to generate - simple, single-purpose utilities
   const apps = [
@@ -100,7 +170,72 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Home Screen Background - Authentic iOS linen */}
+          {/* App View or Home Screen */}
+          {currentApp ? (
+            <div style={{
+              flex: 1,
+              position: 'relative',
+              background: '#000',
+              overflow: 'hidden'
+            }}>
+              {loading ? (
+                /* Loading Screen - The Genius Bar */
+                <div style={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'linear-gradient(135deg, #2A2A2A 0%, #1A1A1A 100%)',
+                  color: '#fff',
+                  padding: '40px'
+                }}>
+                  <div style={{
+                    fontSize: '48px',
+                    marginBottom: '20px'
+                  }}>✨</div>
+                  <div style={{
+                    fontSize: '18px',
+                    fontWeight: '600',
+                    marginBottom: '30px',
+                    textAlign: 'center'
+                  }}>{loadingMessage}</div>
+                  <div style={{
+                    width: '80%',
+                    maxWidth: '200px',
+                    height: '4px',
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    borderRadius: '2px',
+                    overflow: 'hidden',
+                    position: 'relative'
+                  }}>
+                    <div style={{
+                      width: '40%',
+                      height: '100%',
+                      background: 'linear-gradient(90deg, #007AFF, #5AC8FA)',
+                      borderRadius: '2px',
+                      animation: 'loading 1.5s ease-in-out infinite'
+                    }} />
+                  </div>
+                </div>
+              ) : appHtml ? (
+                /* App iframe */
+                <iframe
+                  srcDoc={appHtml}
+                  sandbox="allow-scripts allow-same-origin"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    border: 'none',
+                    background: '#000'
+                  }}
+                  title={currentApp}
+                />
+              ) : null}
+            </div>
+          ) : (
+          /* Home Screen Background - Authentic iOS linen */
           <div className="ios-linen" style={{
             flex: 1,
             padding: '20px 16px',
@@ -144,7 +279,9 @@ export default function Home() {
                   }}
                   onTouchEnd={(e) => {
                     e.currentTarget.style.transform = 'scale(1)'
+                    handleAppClick(app.name)
                   }}
+                  onClick={() => handleAppClick(app.name)}
                 >
                   {/* App Icon - Authentic iOS 1-4 style */}
                   <div
@@ -165,7 +302,11 @@ export default function Home() {
                         '0 1px 3px rgba(0, 0, 0, 0.5),' +
                         'inset 0 1px 0 rgba(255, 255, 255, 0.3),' +
                         'inset 0 -1px 0 rgba(0, 0, 0, 0.2)',
-                      lineHeight: '1'
+                      lineHeight: '1',
+                      userSelect: 'none',
+                      WebkitUserSelect: 'none',
+                      MozUserSelect: 'none',
+                      msUserSelect: 'none'
                     }}
                   >
                     <span style={{ 
@@ -176,7 +317,11 @@ export default function Home() {
                       alignItems: 'center',
                       justifyContent: 'center',
                       lineHeight: '1',
-                      verticalAlign: 'middle'
+                      verticalAlign: 'middle',
+                      userSelect: 'none',
+                      WebkitUserSelect: 'none',
+                      MozUserSelect: 'none',
+                      msUserSelect: 'none'
                     }}>
                       {app.icon}
                     </span>
@@ -195,7 +340,11 @@ export default function Home() {
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
                     lineHeight: '1.2',
-                    letterSpacing: '-0.1px'
+                    letterSpacing: '-0.1px',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    MozUserSelect: 'none',
+                    msUserSelect: 'none'
                   }}>
                     {app.name}
                   </span>
@@ -203,6 +352,7 @@ export default function Home() {
               ))}
             </div>
           </div>
+          )}
 
           {/* Home Button - Authentic iPhone 3G/3GS/4 style */}
           <div style={{
@@ -246,6 +396,7 @@ export default function Home() {
           onTouchEnd={(e) => {
             e.currentTarget.style.transform = 'translateX(-50%) scale(1)'
           }}
+          onClick={handleHomeClick}
           >
             {/* Inner button circle */}
             <div style={{

@@ -87,3 +87,9 @@ body {
 .ios-icon-shadow {
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
 }
+
+/* Loading animation */
+@keyframes loading {
+  0%, 100% { transform: translateX(-100%); }
+  50% { transform: translateX(250%); }
+}
