@@ -27,6 +27,7 @@ export default function Home() {
   const [pendingAppHtml, setPendingAppHtml] = useState<string | null>(null)
   const [pendingAppName, setPendingAppName] = useState<string | null>(null)
   const [showUpdateButton, setShowUpdateButton] = useState(false)
+  const [loadingAppName, setLoadingAppName] = useState<string | null>(null)
   const [customCommand, setCustomCommand] = useState('')
   const [showCustomInput, setShowCustomInput] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -93,6 +94,15 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [])
 
+  // Show update button when user returns to app that has a pending update
+  useEffect(() => {
+    if (currentApp && pendingAppName === currentApp && pendingAppHtml) {
+      setShowUpdateButton(true)
+    } else if (currentApp !== pendingAppName) {
+      setShowUpdateButton(false)
+    }
+  }, [currentApp, pendingAppName, pendingAppHtml])
+
   const loadingMessages = [
     'Optimizing rounded corners...',
     'Convincing the AI it\'s a calculator...',
@@ -149,13 +159,17 @@ export default function Home() {
     if (cached) {
       setAppHtml(cached)
       setCurrentApp(appName)
+      setLoadingAppName(null)
+      setLoading(false)
+      setError(null)
       return
     }
 
-    // Show loading screen
+    // Show loading screen and track which app we're loading
     setLoading(true)
     setCurrentApp(appName)
     setAppHtml(null)
+    setLoadingAppName(appName)
     
     // Randomly select loading messages
     const getRandomMessage = () => {
@@ -220,29 +234,46 @@ export default function Home() {
           throw new Error('Generated content is not valid HTML')
         }
         
-        // Cache it
-        localStorage.setItem(`app_${appName}`, data.html)
-        setAppHtml(data.html)
-        setError(null)
+        // Only update if we're still loading this specific app (user hasn't switched away)
+        if (currentApp === appName && loadingAppName === appName) {
+          // Cache it
+          localStorage.setItem(`app_${appName}`, data.html)
+          setAppHtml(data.html)
+          setError(null)
+          setLoading(false)
+          setLoadingAppName(null)
+        } else {
+          // User switched apps, but we should still cache the result for later
+          localStorage.setItem(`app_${appName}`, data.html)
+        }
       } else {
         throw new Error(data.error || 'No HTML content generated')
       }
     } catch (error) {
       console.error('Error generating app:', error)
       
-      let errorMessage = 'Failed to generate app'
-      if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          errorMessage = 'Request timed out. Please try again.'
-        } else {
-          errorMessage = error.message
+      // Only show error if we're still on this app
+      if (currentApp === appName && loadingAppName === appName) {
+        let errorMessage = 'Failed to generate app'
+        if (error instanceof Error) {
+          if (error.name === 'AbortError') {
+            errorMessage = 'Request timed out. Please try again.'
+          } else {
+            errorMessage = error.message
+          }
         }
+        
+        setError(errorMessage)
+        setLoading(false)
+        setLoadingAppName(null)
       }
-      
-      setError(errorMessage)
     } finally {
       clearInterval(messageInterval)
-      setLoading(false)
+      // Only clear loading state if we're still on the app that was loading
+      if (currentApp === appName && loadingAppName === appName) {
+        setLoading(false)
+        setLoadingAppName(null)
+      }
     }
   }
 
@@ -277,10 +308,12 @@ export default function Home() {
   }
 
   const handleHomeClick = () => {
-    // Clear pending updates when going home
-    setPendingAppHtml(null)
-    setPendingAppName(null)
-    setShowUpdateButton(false)
+    // Clear loading state when going home
+    setLoading(false)
+    setLoadingAppName(null)
+    
+    // Don't clear pending updates - they should persist when user goes home
+    // The update button will show again when user returns to that app
     
     // If code popup is showing, hide it and go home
     if (showCodePopup) {
@@ -403,6 +436,10 @@ export default function Home() {
   const handleFrustrationButton = async () => {
     if (!currentApp || !appHtml || isFixingApp || isEnhancingApp) return
 
+    // Capture the app name at the start to avoid race conditions
+    const appBeingUpdated = currentApp
+    const currentHtml = appHtml
+
     setShowMagicDialog(false)
     setIsFixingApp(true)
     setError(null)
@@ -436,8 +473,8 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          appName: currentApp,
-          currentHtml: appHtml 
+          appName: appBeingUpdated,
+          currentHtml: currentHtml 
         }),
       })
 
@@ -447,11 +484,22 @@ export default function Home() {
         throw new Error(data.error || 'Failed to fix app')
       }
 
-      if (data.html && currentApp) {
-        // Store as pending update for this specific app
+      if (data.html) {
+        // Validate HTML is complete before storing
+        const htmlLower = data.html.toLowerCase()
+        const hasClosingHtml = htmlLower.includes('</html>')
+        
+        if (!hasClosingHtml) {
+          throw new Error('Generated HTML is incomplete and missing closing tags. Please try again.')
+        }
+        
+        // Store as pending update for this specific app (captured at start of function)
         setPendingAppHtml(data.html)
-        setPendingAppName(currentApp)
-        setShowUpdateButton(true)
+        setPendingAppName(appBeingUpdated)
+        // Only show update button if we're still on the app that was being updated
+        if (currentApp === appBeingUpdated) {
+          setShowUpdateButton(true)
+        }
       } else {
         throw new Error(data.error || 'No fixed HTML content generated')
       }
@@ -467,6 +515,10 @@ export default function Home() {
   const handleEnhanceApp = async () => {
     if (!currentApp || !appHtml || isFixingApp || isEnhancingApp) return
 
+    // Capture the app name at the start to avoid race conditions
+    const appBeingUpdated = currentApp
+    const currentHtml = appHtml
+
     setShowMagicDialog(false)
     setIsEnhancingApp(true)
     setError(null)
@@ -479,8 +531,8 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          appName: currentApp,
-          currentHtml: appHtml 
+          appName: appBeingUpdated,
+          currentHtml: currentHtml 
         }),
       })
 
@@ -490,10 +542,21 @@ export default function Home() {
         throw new Error(data.error || 'Failed to enhance app')
       }
 
-      if (data.html && currentApp) {
+      if (data.html) {
+        // Validate HTML is complete before storing
+        const htmlLower = data.html.toLowerCase()
+        const hasClosingHtml = htmlLower.includes('</html>')
+        
+        if (!hasClosingHtml) {
+          throw new Error('Generated HTML is incomplete and missing closing tags. Please try again.')
+        }
+        
         setPendingAppHtml(data.html)
-        setPendingAppName(currentApp)
-        setShowUpdateButton(true)
+        setPendingAppName(appBeingUpdated)
+        // Only show update button if we're still on the app that was being updated
+        if (currentApp === appBeingUpdated) {
+          setShowUpdateButton(true)
+        }
       } else {
         throw new Error(data.error || 'No enhanced HTML content generated')
       }
@@ -508,6 +571,11 @@ export default function Home() {
   const handleCustomCommand = async () => {
     if (!currentApp || !appHtml || isFixingApp || isEnhancingApp || !customCommand.trim()) return
 
+    // Capture the app name and command at the start to avoid race conditions
+    const appBeingUpdated = currentApp
+    const currentHtml = appHtml
+    const commandText = customCommand.trim()
+
     setShowMagicDialog(false)
     setIsEnhancingApp(true)
     setError(null)
@@ -520,9 +588,9 @@ export default function Home() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
-          appName: currentApp,
-          currentHtml: appHtml,
-          command: customCommand.trim()
+          appName: appBeingUpdated,
+          currentHtml: currentHtml,
+          command: commandText
         }),
       })
 
@@ -532,10 +600,21 @@ export default function Home() {
         throw new Error(data.error || 'Failed to process command')
       }
 
-      if (data.html && currentApp) {
+      if (data.html) {
+        // Validate HTML is complete before storing
+        const htmlLower = data.html.toLowerCase()
+        const hasClosingHtml = htmlLower.includes('</html>')
+        
+        if (!hasClosingHtml) {
+          throw new Error('Generated HTML is incomplete and missing closing tags. Please try again.')
+        }
+        
         setPendingAppHtml(data.html)
-        setPendingAppName(currentApp)
-        setShowUpdateButton(true)
+        setPendingAppName(appBeingUpdated)
+        // Only show update button if we're still on the app that was being updated
+        if (currentApp === appBeingUpdated) {
+          setShowUpdateButton(true)
+        }
         setCustomCommand('')
       } else {
         throw new Error(data.error || 'No modified HTML content generated')
