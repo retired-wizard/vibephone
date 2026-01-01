@@ -52,7 +52,7 @@ Generate ONLY the HTML code. Do not include any markdown formatting, code blocks
         'X-Title': 'VibePhone'
       },
       body: JSON.stringify({
-        model: 'openai/gpt-4o-mini', // Using a cost-effective model
+        model: 'google/gemini-3-flash', // Using Gemini 3 Flash
         messages: [
           {
             role: 'system',

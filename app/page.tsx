@@ -188,18 +188,8 @@ export default function Home() {
     <div className="device-container">
       {/* Device Bezel - 9:16 aspect ratio, fullscreen on mobile */}
       <div className="device-bezel">
-        {/* Screen */}
-        <div style={{
-          width: '100%',
-          height: '100%',
-          background: '#000',
-          borderRadius: '32px',
-          overflow: 'hidden',
-          position: 'relative',
-          display: 'flex',
-          flexDirection: 'column',
-          border: '1px solid rgba(0, 0, 0, 0.5)'
-        }}>
+        {/* Screen Area - 9:16 aspect ratio */}
+        <div className="screen-area">
           {/* Status Bar - Early iOS style */}
           <div style={{
             display: 'flex',
@@ -340,7 +330,6 @@ export default function Home() {
           <div className="ios-linen" style={{
             flex: 1,
             padding: '20px 16px',
-            paddingBottom: '90px',
             overflowY: 'auto',
             position: 'relative'
           }}>
@@ -454,13 +443,13 @@ export default function Home() {
             </div>
           </div>
           )}
+        </div>
 
+        {/* Home Button Container - Below screen area */}
+        <div className="home-button-container">
           {/* Home Button - Authentic iPhone 3G/3GS/4 style */}
           <div style={{
-            position: 'absolute',
-            bottom: '12px',
-            left: '50%',
-            transform: 'translateX(-50%)',
+            position: 'relative',
             width: '56px',
             height: '56px',
             borderRadius: '50%',
@@ -478,24 +467,24 @@ export default function Home() {
             zIndex: 10
           }}
           onMouseDown={(e) => {
-            e.currentTarget.style.transform = 'translateX(-50%) scale(0.92)'
+            e.currentTarget.style.transform = 'scale(0.92)'
             e.currentTarget.style.boxShadow = 
               '0 1px 3px rgba(0, 0, 0, 0.6),' +
               'inset 0 1px 2px rgba(255, 255, 255, 0.05),' +
               'inset 0 -1px 2px rgba(0, 0, 0, 0.6)'
           }}
           onMouseUp={(e) => {
-            e.currentTarget.style.transform = 'translateX(-50%) scale(1)'
+            e.currentTarget.style.transform = 'scale(1)'
             e.currentTarget.style.boxShadow = 
               '0 2px 6px rgba(0, 0, 0, 0.6),' +
               'inset 0 1px 2px rgba(255, 255, 255, 0.08),' +
               'inset 0 -1px 2px rgba(0, 0, 0, 0.5)'
           }}
           onTouchStart={(e) => {
-            e.currentTarget.style.transform = 'translateX(-50%) scale(0.92)'
+            e.currentTarget.style.transform = 'scale(0.92)'
           }}
           onTouchEnd={(e) => {
-            e.currentTarget.style.transform = 'translateX(-50%) scale(1)'
+            e.currentTarget.style.transform = 'scale(1)'
           }}
           onClick={handleHomeClick}
           >
@@ -509,18 +498,6 @@ export default function Home() {
               boxShadow: 'inset 0 1px 1px rgba(255, 255, 255, 0.1)'
             }} />
           </div>
-
-          {/* Bottom bezel accent */}
-          <div style={{
-            position: 'absolute',
-            bottom: '0',
-            left: '0',
-            right: '0',
-            height: '80px',
-            background: 'linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.1) 100%)',
-            pointerEvents: 'none',
-            zIndex: 5
-          }} />
         </div>
       </div>
     </div>
