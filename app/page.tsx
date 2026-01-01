@@ -19,6 +19,16 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    // Clear all cached apps when the site loads/reloads
+    const keys = Object.keys(localStorage)
+    keys.forEach(key => {
+      if (key.startsWith('app_')) {
+        localStorage.removeItem(key)
+      }
+    })
+  }, [])
+
+  useEffect(() => {
     const interval = setInterval(() => {
       const now = new Date()
       setTime(now.toLocaleTimeString('en-US', { 
