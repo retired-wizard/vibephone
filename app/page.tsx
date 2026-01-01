@@ -1115,8 +1115,7 @@ export default function Home() {
                 transition: 'transform 0.1s ease, box-shadow 0.1s ease, opacity 0.2s ease',
                 zIndex: 10,
                 opacity: (isFixingApp || isEnhancingApp) ? 0.6 : 1,
-                fontSize: '32px',
-                position: 'relative'
+                fontSize: '32px'
               }}
               onMouseDown={(e) => {
                 if (!isFixingApp && !isEnhancingApp) {
