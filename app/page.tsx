@@ -20,6 +20,7 @@ export default function Home() {
   const [showCodePopup, setShowCodePopup] = useState(false)
   const [codeDescription, setCodeDescription] = useState<string | null>(null)
   const [loadingDescription, setLoadingDescription] = useState(false)
+  const [appDescription, setAppDescription] = useState<string | null>(null)
   const [isLocked, setIsLocked] = useState(true) // Always start locked on mobile
   const [isFixingApp, setIsFixingApp] = useState(false)
   const [isEnhancingApp, setIsEnhancingApp] = useState(false)
@@ -265,8 +266,11 @@ export default function Home() {
           throw new Error('Generated content is not valid HTML')
         }
         
-        // Always cache it first - even if user switched apps
+        // Always cache HTML and description - even if user switched apps
         localStorage.setItem(`app_${appName}`, data.html)
+        if (data.description) {
+          localStorage.setItem(`app_${appName}_desc`, data.description)
+        }
         
         // Only update UI if we're still loading this specific app
         // Use functional state updates to get current values
@@ -275,6 +279,9 @@ export default function Home() {
             // If we're still on this app and still loading it, update the UI
             if (prevLoadingApp === appName && prevApp === appName) {
               setAppHtml(data.html)
+              if (data.description) {
+                setAppDescription(data.description)
+              }
               setError(null)
               setLoading(false)
               return prevApp
@@ -316,33 +323,16 @@ export default function Home() {
     }
   }
 
-  const fetchCodeDescription = async (appName: string, html: string) => {
-    setLoadingDescription(true)
-    setCodeDescription(null)
-    
-    try {
-      const response = await fetch('/api/analyze-code', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appName, htmlCode: html }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to analyze code')
-      }
-
-      if (data.description) {
-        setCodeDescription(data.description)
-      } else {
-        throw new Error('No description generated')
-      }
-    } catch (error) {
-      console.error('Error fetching code description:', error)
-      setCodeDescription('Failed to generate technical description. Please try again.')
-    } finally {
+  // Get stored description from localStorage - no API call needed
+  const loadAppDescription = (appName: string) => {
+    const storedDescription = localStorage.getItem(`app_${appName}_desc`)
+    if (storedDescription) {
+      setAppDescription(storedDescription)
+      setCodeDescription(storedDescription) // Use description for code popup
       setLoadingDescription(false)
+    } else {
+      setAppDescription(null)
+      setCodeDescription(null)
     }
   }
 
@@ -385,9 +375,9 @@ export default function Home() {
       if (isHomeButtonPressedRef.current) {
         longPressOccurredRef.current = true
         setShowCodePopup(true)
-        // Fetch code description when popup opens
-        if (currentApp && appHtml) {
-          fetchCodeDescription(currentApp, appHtml)
+        // Load description from localStorage when popup opens (no API call)
+        if (currentApp) {
+          loadAppDescription(currentApp)
         }
       }
     }, 2000) // 2 seconds
@@ -499,9 +489,13 @@ export default function Home() {
     // Prevent update if app is loading or already updating
     if (!currentApp || !appHtml || isFixingApp || isEnhancingApp || loading) return
 
-    // Capture the app name and HTML at the start to avoid race conditions
+    // Capture the app name and description at the start to avoid race conditions
     const appBeingUpdated = currentApp
-    const currentHtml = appHtml
+    const storedDescription = localStorage.getItem(`app_${currentApp}_desc`)
+    if (!storedDescription) {
+      setError('App description not found. Please regenerate the app.')
+      return
+    }
 
     setShowMagicDialog(false)
     setIsFixingApp(true)
@@ -538,13 +532,30 @@ export default function Home() {
       setLoadingMessage(getRandomMessage())
     }, 3500)
 
+    // Get aspect ratio for fix
+    let aspectRatio = '9:16'
+    const screenElement = document.querySelector('.screen-area') as HTMLElement
+    if (screenElement) {
+      const rect = screenElement.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        const width = rect.width
+        const height = rect.height
+        const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b)
+        const divisor = gcd(Math.round(width * 1000), Math.round(height * 1000))
+        const aspectWidth = Math.round((width * 1000) / divisor)
+        const aspectHeight = Math.round((height * 1000) / divisor)
+        aspectRatio = `${aspectWidth}:${aspectHeight}`
+      }
+    }
+
     try {
       const response = await fetch('/api/fix-app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           appName: appBeingUpdated,
-          currentHtml: currentHtml 
+          description: storedDescription,
+          aspectRatio: aspectRatio
         }),
       })
 
@@ -563,8 +574,12 @@ export default function Home() {
           throw new Error('Generated HTML is incomplete and missing closing tags. Please try again.')
         }
         
-        // Store as pending update for this specific app (captured at start of function)
+        // Store HTML and description as pending update for this specific app
         setPendingAppHtml(data.html)
+        if (data.description) {
+          // Store description for when update is applied
+          localStorage.setItem(`app_${appBeingUpdated}_desc_pending`, data.description)
+        }
         setPendingAppName(appBeingUpdated)
         // Only show update button if we're still on the app that was being updated
         // Use functional state update to get current value
@@ -634,6 +649,9 @@ export default function Home() {
         }
         
         setPendingAppHtml(data.html)
+        if (data.description) {
+          localStorage.setItem(`app_${appBeingUpdated}_desc_pending`, data.description)
+        }
         setPendingAppName(appBeingUpdated)
         // Only show update button if we're still on the app that was being updated
         setCurrentApp((prevApp) => {
@@ -703,6 +721,9 @@ export default function Home() {
         }
         
         setPendingAppHtml(data.html)
+        if (data.description) {
+          localStorage.setItem(`app_${appBeingUpdated}_desc_pending`, data.description)
+        }
         setPendingAppName(appBeingUpdated)
         // Only show update button if we're still on the app that was being updated
         setCurrentApp((prevApp) => {
@@ -737,6 +758,13 @@ export default function Home() {
           if (prevApp === prevPendingName) {
             // Cache the updated version
             localStorage.setItem(`app_${prevApp}`, prevPendingHtml)
+            // Update description if pending description exists
+            const pendingDesc = localStorage.getItem(`app_${prevApp}_desc_pending`)
+            if (pendingDesc) {
+              localStorage.setItem(`app_${prevApp}_desc`, pendingDesc)
+              localStorage.removeItem(`app_${prevApp}_desc_pending`)
+              setAppDescription(pendingDesc)
+            }
             setAppHtml(prevPendingHtml)
             setShowUpdateButton(false)
           }

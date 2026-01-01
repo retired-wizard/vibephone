@@ -4,7 +4,7 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 export async function POST(request: Request) {
-  const { appName, currentHtml } = await request.json()
+  const { appName, description, aspectRatio } = await request.json()
   
   if (!OPENROUTER_API_KEY) {
     console.error('OPENROUTER_API_KEY is not set')
@@ -14,68 +14,58 @@ export async function POST(request: Request) {
     )
   }
 
-  if (!currentHtml) {
+  if (!description) {
     return NextResponse.json(
-      { error: 'Current HTML is required' },
+      { error: 'App description is required' },
       { status: 400 }
     )
   }
 
-  const prompt = `Fix the "${appName}" app. The user is frustrated - find and fix ALL issues.
+  // Default to 9:16 if aspect ratio not provided
+  const appAspectRatio = aspectRatio || '9:16'
 
-ANALYSIS PROCESS:
-1. Read through the entire HTML code systematically
-2. Identify every issue that could cause frustration (see checklists below)
-3. Fix all identified issues
-4. Return the complete, corrected HTML
+  const prompt = `Rebuild the "${appName}" app from scratch based on this description. The user was frustrated with the previous version, so ensure this rebuilt version works correctly and all features function properly.
 
-CRITICAL CHECKS (MANDATORY):
-1. **Button Functionality**:
-   - Find ALL buttons, links, and clickable elements
-   - For each: verify it has an event handler (onclick, addEventListener)
-   - For each: verify the handler performs the correct action
-   - Examples: "Add" adds items, "Calculate" performs calculation, "Start" starts functionality, "Delete" removes items
-   - Fix any missing handlers or non-functional buttons
+App Description:
+${description}
 
-2. **Content Visibility**:
-   - All content must be visible within the viewport
-   - No elements cut off, hidden, or positioned off-screen
-   - Fix any overflow or positioning issues
+CRITICAL REQUIREMENTS:
+- Build a working, functional app that matches the description exactly
+- Ensure ALL features described actually work
+- All buttons must have proper event handlers and function correctly
+- All content must be visible within the viewport
+- If content extends beyond screen, scrolling must work properly
+- Fix any issues that would prevent the app from working smoothly
 
-3. **Scrolling**:
-   - If content exceeds viewport, scrolling must work
-   - Add overflow-y: auto or scroll to containers with overflow
-   - Ensure users can access all content
+Technical Requirements:
+- Single HTML file: CSS in <style>, JavaScript in <script>, all inline
+- Works in sandboxed iframe (no external resources)
+- Aspect ratio: ${appAspectRatio} (fills entire viewport)
+- Dark theme, mobile-friendly
+- Include: window.parent.postMessage({ type: 'app-ready', appName: '${appName}' }, '*') when ready
+- Ensure all buttons have working event handlers
+- Ensure all features function correctly
+- Ensure all content is visible and accessible
 
-COMPREHENSIVE ISSUE CHECKLIST:
-Review the code for:
-✓ Broken functionality (features not working)
-✓ JavaScript errors or bugs
-✓ Logic errors in calculations/data processing
-✓ Missing error handling
-✓ Styling problems (overlapping elements, cut-off text, poor contrast)
-✓ Incomplete implementations
-✓ Confusing UI/UX patterns
-✓ Broken user flows
-✓ Performance issues
-✓ Accessibility problems
-✓ Any other bugs preventing smooth operation
+OUTPUT FORMAT (REQUIRED):
+First, provide a concise natural language description of the COMPLETE rebuilt app (2-4 sentences). This description must describe the ENTIRE app from scratch:
+- All features and functionality - describe complete functionality
+- Basic UI layout and structure - describe the full UI
+- Key interactions and behaviors - describe all interactions
+- Important technical implementation details (if critical for functionality)
+- Basic design elements
+- This description must be complete enough for an LLM to rebuild the entire app from scratch using only this description
 
-Note: Do not limit yourself to this checklist. Perform a thorough code review and fix ANY issues you find.
+Then provide the complete HTML code for the rebuilt app.
 
-Current HTML code:
-\`\`\`html
-${currentHtml}
-\`\`\`
+Use this exact format:
+===DESCRIPTION===
+[description text here]
+===END_DESCRIPTION===
 
-OUTPUT REQUIREMENTS:
-- Return ONLY complete, fixed HTML code
-- Single-file format: CSS in <style>, JavaScript in <script>
-- All features must work correctly
-- Maintain the same app concept and core functionality
-- Code must work in sandboxed iframe
-- Start with <!DOCTYPE html> and end with </html>
-- NO markdown, NO code blocks, NO explanations - only HTML`
+[HTML code here - start with <!DOCTYPE html> and end with </html>]
+
+Do NOT use markdown code blocks. Build a fresh, working version of the app that matches the description and functions correctly.`
 
   try {
     const response = await fetch(OPENROUTER_API_URL, {
@@ -87,11 +77,11 @@ OUTPUT REQUIREMENTS:
         'X-Title': 'VibePhone'
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-pro-preview',
+        model: 'google/gemini-3-flash-preview',
         messages: [
           {
             role: 'system',
-            content: 'You are an expert web developer who analyzes and fixes HTML applications. You identify user experience issues, bugs, and problems, then fix them. Always return only valid HTML code, no markdown or explanations.'
+            content: 'You are an expert web developer who rebuilds apps from descriptions. Build working, functional apps that match descriptions exactly. Return a concise description followed by valid HTML code in the specified format. Use the exact delimiter format provided.'
           },
           {
             role: 'user',
@@ -99,7 +89,7 @@ OUTPUT REQUIREMENTS:
           }
         ],
         temperature: 0.7,
-        max_tokens: 16000
+        max_tokens: 4000
       })
     })
 
@@ -139,10 +129,10 @@ OUTPUT REQUIREMENTS:
     }
 
     const choice = data.choices?.[0]
-    const htmlContent = choice?.message?.content?.trim()
+    const content = choice?.message?.content?.trim()
     const finishReason = choice?.finish_reason
 
-    if (!htmlContent) {
+    if (!content) {
       return NextResponse.json(
         { error: 'No content generated by AI' },
         { status: 500 }
@@ -158,14 +148,33 @@ OUTPUT REQUIREMENTS:
       )
     }
 
-    // Clean up the response - remove markdown code blocks if present
-    let html = htmlContent
+    // Parse description and HTML from response
+    const descriptionMatch = content.match(/===DESCRIPTION===\s*([\s\S]*?)\s*===END_DESCRIPTION===/i)
+    let newDescription = ''
+    let html = ''
+
+    if (descriptionMatch) {
+      newDescription = descriptionMatch[1].trim()
+      // Get HTML after the description section
+      html = content.split(/===END_DESCRIPTION===/i)[1]?.trim() || ''
+    } else {
+      // Fallback: if no delimiter found, try to extract HTML and create basic description
+      html = content
+        .replace(/^```html\n?/i, '')
+        .replace(/^```\n?/i, '')
+        .replace(/```\n?$/i, '')
+        .trim()
+      newDescription = `Rebuilt ${appName} app with working functionality.`
+    }
+
+    // Clean up HTML - remove any remaining markdown code blocks
+    html = html
       .replace(/^```html\n?/i, '')
       .replace(/^```\n?/i, '')
       .replace(/```\n?$/i, '')
       .trim()
 
-    // Ensure it starts with <!DOCTYPE or <html
+    // Ensure HTML starts with <!DOCTYPE or <html
     if (!html.startsWith('<!') && !html.startsWith('<html')) {
       html = `<!DOCTYPE html>\n${html}`
     }
@@ -183,7 +192,7 @@ OUTPUT REQUIREMENTS:
       )
     }
 
-    return NextResponse.json({ html })
+    return NextResponse.json({ html, description: newDescription })
 
   } catch (error) {
     console.error('Error fixing app:', error)
