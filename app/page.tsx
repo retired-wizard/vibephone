@@ -18,7 +18,9 @@ export default function Home() {
   const [loadingMessage, setLoadingMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [showCodePopup, setShowCodePopup] = useState(false)
-  const [isLocked, setIsLocked] = useState(true)
+  const [codeDescription, setCodeDescription] = useState<string | null>(null)
+  const [loadingDescription, setLoadingDescription] = useState(false)
+  const [isLocked, setIsLocked] = useState(false) // Start as false, will be set by useEffect
   const [isFixingApp, setIsFixingApp] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [sliderPosition, setSliderPosition] = useState(0)
@@ -41,6 +43,8 @@ export default function Home() {
 
     // Detect if mobile device
     const checkMobile = () => {
+      if (typeof window === 'undefined') return
+      
       const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera
       const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase()) ||
         (window.innerWidth <= 768 && 'ontouchstart' in window)
@@ -219,10 +223,41 @@ export default function Home() {
     }
   }
 
+  const fetchCodeDescription = async (appName: string, html: string) => {
+    setLoadingDescription(true)
+    setCodeDescription(null)
+    
+    try {
+      const response = await fetch('/api/analyze-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appName, htmlCode: html }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to analyze code')
+      }
+
+      if (data.description) {
+        setCodeDescription(data.description)
+      } else {
+        throw new Error('No description generated')
+      }
+    } catch (error) {
+      console.error('Error fetching code description:', error)
+      setCodeDescription('Failed to generate technical description. Please try again.')
+    } finally {
+      setLoadingDescription(false)
+    }
+  }
+
   const handleHomeClick = () => {
     // If code popup is showing, hide it and go home
     if (showCodePopup) {
       setShowCodePopup(false)
+      setCodeDescription(null)
       setCurrentApp(null)
       setAppHtml(null)
       setLoading(false)
@@ -248,6 +283,10 @@ export default function Home() {
       if (isHomeButtonPressedRef.current) {
         longPressOccurredRef.current = true
         setShowCodePopup(true)
+        // Fetch code description when popup opens
+        if (currentApp && appHtml) {
+          fetchCodeDescription(currentApp, appHtml)
+        }
       }
     }, 2000) // 2 seconds
   }
@@ -993,7 +1032,10 @@ export default function Home() {
       {/* Code Popup Modal */}
       {showCodePopup && appHtml && (
         <div
-          onClick={() => setShowCodePopup(false)}
+          onClick={() => {
+            setShowCodePopup(false)
+            setCodeDescription(null)
+          }}
           style={{
             position: 'fixed',
             top: 0,
@@ -1014,7 +1056,7 @@ export default function Home() {
               background: '#1a1a1a',
               borderRadius: '12px',
               padding: '20px',
-              maxWidth: '90%',
+              maxWidth: '600px',
               maxHeight: '80vh',
               width: '100%',
               overflow: 'auto',
@@ -1034,10 +1076,13 @@ export default function Home() {
                 fontWeight: '600',
                 margin: 0
               }}>
-                {currentApp} Code
+                {currentApp} Technical Details
               </h2>
               <button
-                onClick={() => setShowCodePopup(false)}
+                onClick={() => {
+                  setShowCodePopup(false)
+                  setCodeDescription(null)
+                }}
                 style={{
                   background: 'transparent',
                   border: 'none',
@@ -1055,22 +1100,37 @@ export default function Home() {
                 ×
               </button>
             </div>
-            <pre style={{
-              background: '#000',
-              padding: '16px',
-              borderRadius: '8px',
-              overflow: 'auto',
-              color: '#fff',
-              fontSize: '12px',
-              lineHeight: '1.5',
-              fontFamily: 'Monaco, "Courier New", monospace',
-              whiteSpace: 'pre-wrap',
-              wordWrap: 'break-word',
-              margin: 0,
-              maxHeight: '60vh'
-            }}>
-              {appHtml}
-            </pre>
+            {loadingDescription ? (
+              <div style={{
+                padding: '40px 20px',
+                textAlign: 'center',
+                color: '#fff'
+              }}>
+                <div style={{
+                  fontSize: '14px',
+                  opacity: 0.7
+                }}>
+                  Analyzing code...
+                </div>
+              </div>
+            ) : codeDescription ? (
+              <div style={{
+                background: '#000',
+                padding: '20px',
+                borderRadius: '8px',
+                color: '#fff',
+                fontSize: '14px',
+                lineHeight: '1.8',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                whiteSpace: 'pre-wrap',
+                wordWrap: 'break-word',
+                margin: 0,
+                maxHeight: '60vh',
+                overflow: 'auto'
+              }}>
+                {codeDescription}
+              </div>
+            ) : null}
           </div>
         </div>
       )}
