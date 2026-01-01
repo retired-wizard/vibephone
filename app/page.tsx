@@ -928,7 +928,6 @@ export default function Home() {
               style={{
                 position: 'absolute',
                 right: '20px',
-                position: 'relative',
                 width: '56px',
                 height: '56px',
                 borderRadius: '50%',
