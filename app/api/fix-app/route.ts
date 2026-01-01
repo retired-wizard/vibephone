@@ -21,7 +21,14 @@ export async function POST(request: Request) {
     )
   }
 
-  const prompt = `The user is frustrated with this "${appName}" app. Please analyze the HTML code below and identify what might be causing frustration. Common issues include:
+  const prompt = `The user is frustrated with this "${appName}" app. Please analyze the HTML code below and identify what might be causing frustration. 
+
+SPECIFIC CHECKS TO PERFORM:
+1. **Button Functionality**: Verify that EVERY button in the app actually does something when pressed. Test all click handlers and event listeners. If any button doesn't work or doesn't have proper event handlers, fix it.
+2. **Visibility**: Ensure that ALL content is visible on the screen within the viewport. Check for elements that might be cut off, hidden, or positioned outside the visible area.
+3. **Scrolling**: If there is content that extends beyond the visible screen area, ensure that scrolling is properly implemented and functional. Add overflow scrolling where needed so users can access all content.
+
+ADDITIONAL COMMON ISSUES TO CHECK:
 - Broken functionality (buttons not working, features not functioning)
 - Poor user experience (unresponsive UI, confusing layout, hard to use)
 - Bugs or errors in the JavaScript code
@@ -41,6 +48,9 @@ Requirements:
 - Return ONLY the complete, fixed HTML code
 - Keep it as a single-file HTML application (all CSS in <style> tags, all JavaScript in <script> tags)
 - Ensure all features work correctly
+- **CRITICAL**: Verify every button has a working click handler and actually performs an action
+- **CRITICAL**: Ensure all content fits within the viewport or has proper scrolling implemented
+- **CRITICAL**: If content extends beyond screen, add overflow-y: auto or scroll functionality
 - Improve user experience based on the issues you identified
 - Maintain the same app concept and functionality
 - Fix any bugs or broken features

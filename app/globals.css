@@ -109,6 +109,8 @@ body {
   justify-content: center;
   background: #000;
   padding: 20px;
+  position: relative;
+  overflow: visible;
 }
 
 /* Device bezel - shows bezel on desktop, fullscreen on mobile */

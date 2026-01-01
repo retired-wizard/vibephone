@@ -37,6 +37,7 @@ export default function Home() {
   const longPressOccurredRef = useRef(false)
   const sliderRef = useRef<HTMLDivElement>(null)
   const sliderTrackRef = useRef<HTMLDivElement>(null)
+  const deviceContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // Clear all cached apps when the site loads/reloads
@@ -711,7 +712,7 @@ export default function Home() {
       )}
 
       {/* Main Device - Hidden when locked on mobile */}
-      <div className="device-container" style={{ display: isMobile && isLocked ? 'none' : 'flex' }}>
+      <div ref={deviceContainerRef} className="device-container" style={{ display: isMobile && isLocked ? 'none' : 'flex', position: 'relative' }}>
       {/* Device Bezel - 9:16 aspect ratio, fullscreen on mobile */}
       <div className="device-bezel">
         {/* Screen Area - 9:16 aspect ratio */}
@@ -860,7 +861,16 @@ export default function Home() {
                       zIndex: 100
                     }}>
                       <button
-                        onClick={handleUpdateApp}
+                        onClick={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          handleUpdateApp()
+                        }}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchEnd={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                        }}
                         style={{
                           background: 'linear-gradient(135deg, #007AFF 0%, #0051D5 100%)',
                           color: '#fff',
@@ -871,13 +881,17 @@ export default function Home() {
                           fontWeight: '600',
                           cursor: 'pointer',
                           boxShadow: '0 4px 12px rgba(0, 122, 255, 0.4)',
-                          transition: 'transform 0.1s ease'
+                          transition: 'transform 0.1s ease',
+                          transform: 'scale(1)'
                         }}
                         onMouseDown={(e) => {
-                          e.currentTarget.style.transform = 'translateX(-50%) scale(0.95)'
+                          e.currentTarget.style.transform = 'scale(0.95)'
                         }}
                         onMouseUp={(e) => {
-                          e.currentTarget.style.transform = 'translateX(-50%) scale(1)'
+                          e.currentTarget.style.transform = 'scale(1)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.transform = 'scale(1)'
                         }}
                       >
                         Update Available ✨
@@ -1095,27 +1109,33 @@ export default function Home() {
           {/* Magic Wand Button - Only shows when app is loaded */}
           {currentApp && appHtml && !loading && !error && (
             <div 
-              onClick={() => setShowMagicDialog(true)}
+              onClick={(isFixingApp || isEnhancingApp) ? undefined : () => setShowMagicDialog(true)}
               style={{
                 position: 'absolute',
                 right: '20px',
                 width: '56px',
                 height: '56px',
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, #9B59B6 0%, #8E44AD 50%, #7D3C98 100%)',
-                border: '2px solid rgba(0, 0, 0, 0.8)',
-                boxShadow: 
-                  '0 2px 6px rgba(0, 0, 0, 0.6),' +
+                background: (isFixingApp || isEnhancingApp) 
+                  ? 'transparent' 
+                  : 'linear-gradient(135deg, #9B59B6 0%, #8E44AD 50%, #7D3C98 100%)',
+                border: (isFixingApp || isEnhancingApp) 
+                  ? 'none'
+                  : '2px solid rgba(0, 0, 0, 0.8)',
+                boxShadow: (isFixingApp || isEnhancingApp) 
+                  ? 'none'
+                  : ('0 2px 6px rgba(0, 0, 0, 0.6),' +
                   'inset 0 1px 2px rgba(255, 255, 255, 0.15),' +
-                  'inset 0 -1px 2px rgba(0, 0, 0, 0.5)',
+                  'inset 0 -1px 2px rgba(0, 0, 0, 0.5)'),
                 cursor: (isFixingApp || isEnhancingApp) ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 transition: 'transform 0.1s ease, box-shadow 0.1s ease, opacity 0.2s ease',
                 zIndex: 10,
-                opacity: (isFixingApp || isEnhancingApp) ? 0.6 : 1,
-                fontSize: '32px'
+                opacity: (isFixingApp || isEnhancingApp) ? 1 : 1,
+                fontSize: '32px',
+                pointerEvents: (isFixingApp || isEnhancingApp) ? 'none' : 'auto'
               }}
               onMouseDown={(e) => {
                 if (!isFixingApp && !isEnhancingApp) {
@@ -1127,18 +1147,22 @@ export default function Home() {
                 }
               }}
               onMouseUp={(e) => {
-                e.currentTarget.style.transform = 'scale(1)'
-                e.currentTarget.style.boxShadow = 
-                  '0 2px 6px rgba(0, 0, 0, 0.6),' +
-                  'inset 0 1px 2px rgba(255, 255, 255, 0.15),' +
-                  'inset 0 -1px 2px rgba(0, 0, 0, 0.5)'
+                if (!isFixingApp && !isEnhancingApp) {
+                  e.currentTarget.style.transform = 'scale(1)'
+                  e.currentTarget.style.boxShadow = 
+                    '0 2px 6px rgba(0, 0, 0, 0.6),' +
+                    'inset 0 1px 2px rgba(255, 255, 255, 0.15),' +
+                    'inset 0 -1px 2px rgba(0, 0, 0, 0.5)'
+                }
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)'
-                e.currentTarget.style.boxShadow = 
-                  '0 2px 6px rgba(0, 0, 0, 0.6),' +
-                  'inset 0 1px 2px rgba(255, 255, 255, 0.15),' +
-                  'inset 0 -1px 2px rgba(0, 0, 0, 0.5)'
+                if (!isFixingApp && !isEnhancingApp) {
+                  e.currentTarget.style.transform = 'scale(1)'
+                  e.currentTarget.style.boxShadow = 
+                    '0 2px 6px rgba(0, 0, 0, 0.6),' +
+                    'inset 0 1px 2px rgba(255, 255, 255, 0.15),' +
+                    'inset 0 -1px 2px rgba(0, 0, 0, 0.5)'
+                }
               }}
               onTouchStart={(e) => {
                 if (!isFixingApp && !isEnhancingApp) {
@@ -1146,46 +1170,62 @@ export default function Home() {
                 }
               }}
               onTouchEnd={(e) => {
-                e.currentTarget.style.transform = 'scale(1)'
+                if (!isFixingApp && !isEnhancingApp) {
+                  e.currentTarget.style.transform = 'scale(1)'
+                }
               }}
             >
-              <span style={{ 
-                userSelect: 'none',
-                WebkitUserSelect: 'none',
-                filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))'
-              }}>
-                ✨
-              </span>
-              {/* Loading Spinner */}
+              {/* Show emoji only when NOT loading */}
+              {!(isFixingApp || isEnhancingApp) && (
+                <span style={{ 
+                  userSelect: 'none',
+                  WebkitUserSelect: 'none',
+                  filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))'
+                }}>
+                  🪄
+                </span>
+              )}
+              {/* Loading Spinner - replaces button during loading */}
               {(isFixingApp || isEnhancingApp) && (
                 <div style={{
-                  position: 'absolute',
-                  top: '-4px',
-                  right: '-4px',
-                  bottom: '-4px',
-                  left: '-4px',
+                  width: '56px',
+                  height: '56px',
                   borderRadius: '50%',
-                  border: '3px solid rgba(155, 89, 182, 0.3)',
+                  border: '4px solid rgba(155, 89, 182, 0.3)',
                   borderTopColor: '#9B59B6',
                   animation: 'spin 1s linear infinite',
-                  pointerEvents: 'none'
+                  boxSizing: 'border-box'
                 }} />
               )}
             </div>
           )}
         </div>
-      </div>
 
-      {/* Magic Wand Dialog */}
-      {showMagicDialog && currentApp && appHtml && (
+        {/* Magic Wand Dialog - Constrained to device container on desktop */}
+        {showMagicDialog && currentApp && appHtml && (
         <div
-          onClick={() => setShowMagicDialog(false)}
+          onClick={(e) => {
+            // Only close if clicking the backdrop, not the dialog content
+            if (e.target === e.currentTarget) {
+              setShowMagicDialog(false)
+              setShowCustomInput(false)
+              setCustomCommand('')
+            }
+          }}
+          onTouchStart={(e) => {
+            // Only close if touching the backdrop, not the dialog content
+            if (e.target === e.currentTarget) {
+              setShowMagicDialog(false)
+              setShowCustomInput(false)
+              setCustomCommand('')
+            }
+          }}
           style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
+            position: isMobile ? 'fixed' : 'absolute',
+            top: isMobile ? 0 : 0,
+            left: isMobile ? 0 : 0,
+            right: isMobile ? 0 : 0,
+            bottom: isMobile ? 0 : 0,
             background: 'rgba(0, 0, 0, 0.7)',
             display: 'flex',
             alignItems: 'center',
@@ -1196,6 +1236,8 @@ export default function Home() {
         >
           <div
             onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
             style={{
               background: '#1a1a1a',
               borderRadius: '16px',
@@ -1335,6 +1377,11 @@ export default function Home() {
                 <textarea
                   value={customCommand}
                   onChange={(e) => setCustomCommand(e.target.value)}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => e.stopPropagation()}
+                  onTouchMove={(e) => e.stopPropagation()}
+                  onClick={(e) => e.stopPropagation()}
+                  onFocus={(e) => e.stopPropagation()}
                   placeholder="Type your command here... (e.g., 'Add a dark mode toggle', 'Make buttons bigger', etc.)"
                   style={{
                     background: '#000',
@@ -1346,7 +1393,8 @@ export default function Home() {
                     fontFamily: 'inherit',
                     minHeight: '100px',
                     resize: 'vertical',
-                    outline: 'none'
+                    outline: 'none',
+                    touchAction: 'manipulation'
                   }}
                 />
                 <div style={{
@@ -1395,7 +1443,8 @@ export default function Home() {
             )}
           </div>
         </div>
-      )}
+        )}
+      </div>
 
       {/* Code Popup Modal */}
       {showCodePopup && appHtml && (
