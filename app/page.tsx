@@ -185,30 +185,9 @@ export default function Home() {
   ]
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#000',
-      padding: '20px'
-    }}>
-      {/* Device Bezel - 9:16 aspect ratio */}
-      <div style={{
-        width: '100%',
-        maxWidth: '375px',
-        aspectRatio: '9 / 16',
-        maxHeight: '90vh',
-        background: 'linear-gradient(135deg, #1a1a1a 0%, #000000 50%, #1a1a1a 100%)',
-        borderRadius: '36px',
-        padding: '4px',
-        boxShadow: 
-          '0 0 0 4px rgba(0, 0, 0, 0.8),' +
-          '0 0 0 5px rgba(40, 40, 40, 0.6),' +
-          'inset 0 2px 4px rgba(255, 255, 255, 0.1),' +
-          '0 20px 60px rgba(0, 0, 0, 0.8)',
-        position: 'relative'
-      }}>
+    <div className="device-container">
+      {/* Device Bezel - 9:16 aspect ratio, fullscreen on mobile */}
+      <div className="device-bezel">
         {/* Screen */}
         <div style={{
           width: '100%',
