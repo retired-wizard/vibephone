@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
 export default function Home() {
   const [time, setTime] = useState(() => {
@@ -290,13 +290,13 @@ export default function Home() {
 
     // Try document.documentElement first, then document.body
     tryFullscreen(document.documentElement).catch(() => {
-      tryFullscreen(document.body).catch((err) => {
+      tryFullscreen(document.body).catch((err: unknown) => {
         console.log('Fullscreen not available:', err)
       })
     })
   }
 
-  const handleUnlock = () => {
+  const handleUnlock = useCallback(() => {
     // Request fullscreen immediately during user interaction
     // Use requestAnimationFrame to ensure it's within the interaction context
     requestAnimationFrame(() => {
@@ -305,7 +305,7 @@ export default function Home() {
     
     setIsLocked(false)
     localStorage.setItem('vibephone_unlocked', 'true')
-  }
+  }, [])
 
   const handleFrustrationButton = async () => {
     if (!currentApp || !appHtml || isFixingApp) return
@@ -487,7 +487,7 @@ export default function Home() {
             } else if ((element as any).mozRequestFullScreen) {
               (element as any).mozRequestFullScreen()
             }
-          } catch (err) {
+          } catch (err: unknown) {
             // Silently fail - some browsers don't support fullscreen
           }
         }
@@ -518,7 +518,7 @@ export default function Home() {
       window.removeEventListener('touchmove', handleTouchMove)
       window.removeEventListener('touchend', handleTouchEnd)
     }
-  }, [isDragging, isLocked])
+  }, [isDragging, isLocked, handleUnlock])
 
   // Apps that are easy for AI to generate - simple, single-purpose utilities
   const apps = [
