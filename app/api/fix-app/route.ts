@@ -4,7 +4,10 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 export async function POST(request: Request) {
-  const { appName, description, aspectRatio } = await request.json()
+  const { appName, description, aspectRatio, model } = await request.json()
+  
+  // Use provided model or fallback to default
+  const selectedModel = model || 'google/gemini-3-flash-preview'
   
   if (!OPENROUTER_API_KEY) {
     console.error('OPENROUTER_API_KEY is not set')
@@ -48,12 +51,14 @@ Technical Requirements:
 - Ensure all content is visible and accessible
 
 OUTPUT FORMAT (REQUIRED):
-First, provide a concise natural language description of the COMPLETE rebuilt app (2-4 sentences). This description must describe the ENTIRE app from scratch:
-- All features and functionality - describe complete functionality
-- Basic UI layout and structure - describe the full UI
-- Key interactions and behaviors - describe all interactions
-- Important technical implementation details (if critical for functionality)
-- Basic design elements
+First, provide a detailed natural language description of the COMPLETE rebuilt app (6-10 sentences). This description must describe the ENTIRE app from scratch in comprehensive detail:
+- All features and functionality - describe complete functionality in detail, including all buttons, inputs, outputs, and their purposes
+- Basic UI layout and structure - describe the full UI layout, positioning of all elements, visual hierarchy, and how components are arranged
+- Key interactions and behaviors - describe all interactions, what happens when users click buttons, how data is processed, state changes, and user feedback
+- Important technical implementation details (if critical for functionality) - mention algorithms, data structures, event handling, state management, and any technical approaches
+- Basic design elements - describe colors, typography, spacing, visual effects, button styles, and overall aesthetic
+- User experience flow - describe how users navigate through the app, complete tasks, and interact with all features
+- Any special features or unique aspects of the implementation
 - This description must be complete enough for an LLM to rebuild the entire app from scratch using only this description
 
 Then provide the complete HTML code for the rebuilt app.
@@ -77,7 +82,7 @@ Do NOT use markdown code blocks. Build a fresh, working version of the app that 
         'X-Title': 'VibePhone'
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: selectedModel,
         messages: [
           {
             role: 'system',

@@ -4,7 +4,10 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 export async function POST(request: Request) {
-  const { appName, currentHtml, command } = await request.json()
+  const { appName, currentHtml, command, model } = await request.json()
+  
+  // Use provided model or fallback to default
+  const selectedModel = model || 'google/gemini-3-flash-preview'
   
   if (!OPENROUTER_API_KEY) {
     console.error('OPENROUTER_API_KEY is not set')
@@ -31,12 +34,14 @@ ${currentHtml}
 \`\`\`
 
 OUTPUT FORMAT (REQUIRED):
-First, provide a concise natural language description of the COMPLETE app as it exists after modification (2-4 sentences). This description must describe the ENTIRE app from scratch, not just the modifications made. It should include:
-- All features (existing + modifications from command) - describe the complete functionality
-- Basic UI layout and structure - describe the full UI
-- Key interactions and behaviors - describe all interactions
-- Important technical implementation details (if critical for functionality)
-- Basic design elements
+First, provide a detailed natural language description of the COMPLETE app as it exists after modification (6-10 sentences). This description must describe the ENTIRE app from scratch, not just the modifications made. It should be comprehensive and include:
+- All features (existing + modifications from command) - describe the complete functionality in detail, including all original features and all modifications made per the user's command
+- Basic UI layout and structure - describe the full UI layout, positioning of all elements, visual hierarchy, and how all components are arranged
+- Key interactions and behaviors - describe all interactions, what happens when users interact with the app, how data flows, state changes, and user feedback
+- Important technical implementation details (if critical for functionality) - mention algorithms, data structures, event handling, state management, and any technical approaches used
+- Basic design elements - describe colors, typography, spacing, visual effects, button styles, animations, and overall aesthetic
+- User experience flow - describe how users navigate through the app, complete tasks, and interact with all features
+- Any special features or unique aspects of the implementation, including both original features and modifications
 - This description must be complete enough for an LLM to rebuild the entire app from scratch using only this description
 
 Then provide the complete modified HTML code.
@@ -66,7 +71,7 @@ Requirements:
         'X-Title': 'VibePhone'
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: selectedModel,
         messages: [
           {
             role: 'system',

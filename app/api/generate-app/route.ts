@@ -16,10 +16,13 @@ const APP_DESCRIPTIONS: Record<string, string> = {
 }
 
 export async function POST(request: Request) {
-  const { appName, aspectRatio } = await request.json()
+  const { appName, aspectRatio, model } = await request.json()
   
   // Default to 9:16 if aspect ratio not provided
   const appAspectRatio = aspectRatio || '9:16'
+  
+  // Use provided model or fallback to default
+  const selectedModel = model || 'google/gemini-3-flash-preview'
   
   if (!OPENROUTER_API_KEY) {
     console.error('OPENROUTER_API_KEY is not set')
@@ -45,12 +48,14 @@ Technical:
 App: ${appDescription}
 
 OUTPUT FORMAT (REQUIRED):
-First, provide a concise natural language description of the app (2-4 sentences). This description should include:
-- Core functionality and features
-- Basic UI layout and structure
-- Key interactions and behaviors
-- Important technical implementation details (if critical for functionality)
-- Basic design elements (dark theme, button styles, etc.)
+First, provide a detailed natural language description of the app (6-10 sentences). This description should be comprehensive and include:
+- Core functionality and features - describe all features in detail
+- Basic UI layout and structure - describe the complete layout, positioning of elements, and visual hierarchy
+- Key interactions and behaviors - explain how users interact with the app, what happens when buttons are clicked, how data flows
+- Important technical implementation details (if critical for functionality) - mention any key algorithms, data structures, or technical approaches used
+- Basic design elements (dark theme, button styles, etc.) - describe colors, typography, spacing, visual effects, and overall aesthetic
+- User experience flow - describe how users navigate through the app and complete tasks
+- Any special features or unique aspects of the implementation
 
 Then provide the complete HTML code.
 
@@ -73,7 +78,7 @@ Do NOT use markdown code blocks. The description should be concise but complete 
         'X-Title': 'VibePhone'
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview', // Using Gemini 3 Flash Preview
+        model: selectedModel,
         messages: [
           {
             role: 'system',

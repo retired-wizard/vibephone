@@ -4,7 +4,10 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 export async function POST(request: Request) {
-  const { appName, htmlCode } = await request.json()
+  const { appName, htmlCode, model } = await request.json()
+  
+  // Use provided model or fallback to default
+  const selectedModel = model || 'google/gemini-3-flash-preview'
   
   if (!OPENROUTER_API_KEY) {
     console.error('OPENROUTER_API_KEY is not set')
@@ -49,7 +52,7 @@ Provide a brief, focused analysis highlighting only the advanced features.`
         'X-Title': 'VibePhone'
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: selectedModel,
         messages: [
           {
             role: 'system',

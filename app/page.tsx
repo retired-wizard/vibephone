@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import SettingsApp from './components/SettingsApp'
 
 export default function Home() {
   const [time, setTime] = useState(() => {
@@ -45,15 +46,8 @@ export default function Home() {
   const deviceContainerRef = useRef<HTMLDivElement>(null)
   const fullscreenAttemptRef = useRef<number>(0)
   const shouldUnlockRef = useRef(false)
-  // Generate version once per build - uses build timestamp or current time as fallback
-  const [buildVersion] = useState(() => {
-    if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_BUILD_VERSION) {
-      return process.env.NEXT_PUBLIC_BUILD_VERSION
-    }
-    // Generate a version based on timestamp (will be consistent per deployment)
-    const timestamp = Date.now()
-    return `v${timestamp.toString(36).slice(-6)}`
-  })
+  // Generate version once per build - use fixed default to avoid hydration mismatch
+  const buildVersion = 'v1.0.0'
 
   useEffect(() => {
     // Check if build version changed - if so, clear all cached apps
@@ -160,6 +154,13 @@ export default function Home() {
     }
   }, [])
 
+  // Helper function to get selected model from localStorage
+  const getSelectedModel = (): string => {
+    if (typeof window === 'undefined') return 'google/gemini-3-flash-preview'
+    const saved = localStorage.getItem('selected_llm_model')
+    return saved || 'google/gemini-3-flash-preview'
+  }
+
   const loadingMessages = [
     'Optimizing rounded corners...',
     'Convincing the AI it\'s a calculator...',
@@ -204,6 +205,16 @@ export default function Home() {
   ]
 
   const handleAppClick = async (appName: string) => {
+    // Special handling for Settings app - render directly, no API call or iframe
+    if (appName === 'Settings') {
+      setCurrentApp('Settings')
+      setAppHtml(null)
+      setLoading(false)
+      setError(null)
+      setLoadingAppName(null)
+      return
+    }
+
     // If clicking the same app that's already loaded, do nothing
     if (currentApp === appName && appHtml && !loading) {
       return
@@ -285,7 +296,7 @@ export default function Home() {
       const response = await fetch('/api/generate-app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appName, aspectRatio }),
+        body: JSON.stringify({ appName, aspectRatio, model: getSelectedModel() }),
         signal: controller.signal
       })
       
@@ -490,7 +501,7 @@ export default function Home() {
       const response = await fetch('/api/generate-app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appName: appToReset, aspectRatio }),
+        body: JSON.stringify({ appName: appToReset, aspectRatio, model: getSelectedModel() }),
         signal: controller.signal
       })
       
@@ -759,7 +770,8 @@ export default function Home() {
         body: JSON.stringify({ 
           appName: appBeingUpdated,
           description: storedDescription,
-          aspectRatio: aspectRatio
+          aspectRatio: aspectRatio,
+          model: getSelectedModel()
         }),
       })
 
@@ -833,7 +845,8 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           appName: appBeingUpdated,
-          currentHtml: currentHtml 
+          currentHtml: currentHtml,
+          model: getSelectedModel()
         }),
       })
 
@@ -905,7 +918,8 @@ export default function Home() {
         body: JSON.stringify({ 
           appName: appBeingUpdated,
           currentHtml: currentHtml,
-          command: commandText
+          command: commandText,
+          model: getSelectedModel()
         }),
       })
 
@@ -1132,7 +1146,8 @@ export default function Home() {
     { name: 'Todo List', icon: '📋', gradient: 'linear-gradient(135deg, #D85A5A 0%, #C84A4A 100%)' },
     { name: 'Drawing', icon: '✏️', gradient: 'linear-gradient(135deg, #C8C8CC 0%, #B8B8BD 100%)' },
     { name: 'Coin Flip', icon: '🪙', gradient: 'linear-gradient(135deg, #8E6FB5 0%, #7E5FA5 100%)' },
-    { name: 'Snake', icon: '🐍', gradient: 'linear-gradient(135deg, #27AE60 0%, #229954 100%)' }
+    { name: 'Snake', icon: '🐍', gradient: 'linear-gradient(135deg, #27AE60 0%, #229954 100%)' },
+    { name: 'Settings', icon: '⚙️', gradient: 'linear-gradient(135deg, #6C6C6C 0%, #5C5C5C 100%)' }
   ]
 
   return (
@@ -1220,7 +1235,10 @@ export default function Home() {
               background: '#000',
               overflow: 'hidden'
             }}>
-              {loading ? (
+              {currentApp === 'Settings' ? (
+                /* Settings App - Render as React component */
+                <SettingsApp />
+              ) : loading ? (
                 /* Loading Screen - The Genius Bar */
                 <div style={{
                   width: '100%',
@@ -1420,7 +1438,8 @@ export default function Home() {
                     cursor: 'pointer',
                     transition: 'transform 0.08s ease-out',
                     WebkitTapHighlightColor: 'transparent',
-                    width: '100%'
+                    width: '100%',
+                    overflow: 'visible'
                   }}
                   onMouseDown={(e) => {
                     e.currentTarget.style.transform = 'scale(0.88)'
@@ -1455,6 +1474,7 @@ export default function Home() {
                       marginBottom: '4px',
                       border: 'none',
                       position: 'relative',
+                      overflow: 'visible',
                       boxShadow: 
                         '0 1px 3px rgba(0, 0, 0, 0.5),' +
                         'inset 0 1px 0 rgba(255, 255, 255, 0.3),' +
@@ -1487,13 +1507,12 @@ export default function Home() {
                       <div
                         style={{
                           position: 'absolute',
-                          top: '-2px',
-                          right: '-2px',
+                          top: '-4px',
+                          right: '-4px',
                           width: '12px',
                           height: '12px',
                           borderRadius: '50%',
                           background: '#007AFF',
-                          border: '2px solid rgba(255, 255, 255, 0.9)',
                           boxShadow: '0 1px 2px rgba(0, 0, 0, 0.3)',
                           zIndex: 10,
                           pointerEvents: 'none'
