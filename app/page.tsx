@@ -20,7 +20,7 @@ export default function Home() {
   const [showCodePopup, setShowCodePopup] = useState(false)
   const [codeDescription, setCodeDescription] = useState<string | null>(null)
   const [loadingDescription, setLoadingDescription] = useState(false)
-  const [isLocked, setIsLocked] = useState(false) // Start as false, will be set by useEffect
+  const [isLocked, setIsLocked] = useState(true) // Always start locked on mobile
   const [isFixingApp, setIsFixingApp] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [sliderPosition, setSliderPosition] = useState(0)
@@ -50,12 +50,11 @@ export default function Home() {
         (window.innerWidth <= 768 && 'ontouchstart' in window)
       setIsMobile(isMobileDevice)
 
-      // Check if already unlocked (only for mobile)
+      // On mobile, always show lock screen on page load/reload
+      // Desktop is never locked
       if (isMobileDevice) {
-        const unlocked = localStorage.getItem('vibephone_unlocked')
-        setIsLocked(unlocked !== 'true')
+        setIsLocked(true) // Always locked on mobile until user unlocks
       } else {
-        // Desktop is never locked
         setIsLocked(false)
       }
     }
@@ -343,7 +342,7 @@ export default function Home() {
     })
     
     setIsLocked(false)
-    localStorage.setItem('vibephone_unlocked', 'true')
+    // Don't persist unlock state - lock screen will show again on next reload
   }, [])
 
   const handleFrustrationButton = async () => {
@@ -1100,11 +1099,12 @@ export default function Home() {
                 ×
               </button>
             </div>
-            {loadingDescription ? (
+            {loadingDescription && (
               <div style={{
-                padding: '40px 20px',
+                padding: '20px',
                 textAlign: 'center',
-                color: '#fff'
+                color: '#fff',
+                marginBottom: '16px'
               }}>
                 <div style={{
                   fontSize: '14px',
@@ -1113,7 +1113,8 @@ export default function Home() {
                   Analyzing code...
                 </div>
               </div>
-            ) : codeDescription ? (
+            )}
+            {codeDescription && (
               <div style={{
                 background: '#000',
                 padding: '20px',
@@ -1124,13 +1125,43 @@ export default function Home() {
                 fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
                 whiteSpace: 'pre-wrap',
                 wordWrap: 'break-word',
-                margin: 0,
-                maxHeight: '60vh',
-                overflow: 'auto'
+                marginBottom: '16px',
+                maxHeight: '30vh',
+                overflow: 'auto',
+                border: '1px solid rgba(255, 255, 255, 0.1)'
               }}>
                 {codeDescription}
               </div>
-            ) : null}
+            )}
+            <div style={{
+              marginTop: codeDescription ? '0' : '0'
+            }}>
+              <div style={{
+                fontSize: '12px',
+                color: '#888',
+                marginBottom: '8px',
+                fontWeight: '600'
+              }}>
+                CODE
+              </div>
+              <pre style={{
+                background: '#000',
+                padding: '16px',
+                borderRadius: '8px',
+                overflow: 'auto',
+                color: '#fff',
+                fontSize: '12px',
+                lineHeight: '1.5',
+                fontFamily: 'Monaco, "Courier New", monospace',
+                whiteSpace: 'pre-wrap',
+                wordWrap: 'break-word',
+                margin: 0,
+                maxHeight: '40vh',
+                border: '1px solid rgba(255, 255, 255, 0.1)'
+              }}>
+                {appHtml}
+              </pre>
+            </div>
           </div>
         </div>
       )}

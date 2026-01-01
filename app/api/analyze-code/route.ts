@@ -21,28 +21,23 @@ export async function POST(request: Request) {
     )
   }
 
-  const prompt = `Analyze the following HTML code for a "${appName}" app and provide a detailed technical description of how it functions.
+  const prompt = `Analyze the following HTML code for a "${appName}" app and provide a brief technical summary focusing on advanced or interesting features.
 
-Focus on:
-- The technical implementation details of each feature
-- How the HTML structure is organized
-- CSS styling techniques and layout methods used
-- JavaScript functionality and how it's implemented
-- Event handling mechanisms
-- Data storage and state management approaches
-- Any specific algorithms or patterns used
-- How the UI is rendered and updated
-- Responsive design implementation
-- Technical choices made in the implementation
+Keep it concise (2-4 short paragraphs max). Focus on:
+- Advanced JavaScript features, algorithms, or patterns used
+- Sophisticated CSS techniques or layout methods
+- Unique implementation approaches
+- Complex functionality or state management
+- Any particularly clever technical solutions
 
-Return a well-formatted, readable text description (not code) that explains the technical workings of this application. Use clear sections, paragraphs, and technical terminology.
+Skip basic explanations of simple HTML/CSS/JS. Focus only on what's technically interesting or advanced.
 
 HTML code:
 \`\`\`html
 ${htmlCode}
 \`\`\`
 
-Provide a comprehensive technical analysis.`
+Provide a brief, focused analysis highlighting only the advanced features.`
 
   try {
     const response = await fetch(OPENROUTER_API_URL, {
@@ -58,7 +53,7 @@ Provide a comprehensive technical analysis.`
         messages: [
           {
             role: 'system',
-            content: 'You are a technical documentation expert who analyzes code and explains how it works. Provide clear, detailed technical descriptions focusing on implementation details, architecture, and how features are technically implemented.'
+            content: 'You are a technical documentation expert who analyzes code. Provide brief, concise summaries focusing only on advanced features, interesting implementations, and sophisticated technical approaches. Skip basic explanations.'
           },
           {
             role: 'user',
@@ -66,7 +61,7 @@ Provide a comprehensive technical analysis.`
           }
         ],
         temperature: 0.7,
-        max_tokens: 2000
+        max_tokens: 500
       })
     })
 
