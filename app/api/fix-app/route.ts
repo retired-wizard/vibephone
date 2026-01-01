@@ -69,7 +69,7 @@ Generate ONLY the HTML code. Do not include any markdown formatting, code blocks
         'X-Title': 'VibePhone'
       },
       body: JSON.stringify({
-        model: 'google/gemini-pro',
+        model: 'google/gemini-3-pro-preview',
         messages: [
           {
             role: 'system',

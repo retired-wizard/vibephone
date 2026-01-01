@@ -25,6 +25,7 @@ export default function Home() {
   const [isEnhancingApp, setIsEnhancingApp] = useState(false)
   const [showMagicDialog, setShowMagicDialog] = useState(false)
   const [pendingAppHtml, setPendingAppHtml] = useState<string | null>(null)
+  const [pendingAppName, setPendingAppName] = useState<string | null>(null)
   const [showUpdateButton, setShowUpdateButton] = useState(false)
   const [customCommand, setCustomCommand] = useState('')
   const [showCustomInput, setShowCustomInput] = useState(false)
@@ -127,6 +128,13 @@ export default function Home() {
   ]
 
   const handleAppClick = async (appName: string) => {
+    // Clear pending updates if they're for a different app
+    if (pendingAppName && pendingAppName !== appName) {
+      setPendingAppHtml(null)
+      setPendingAppName(null)
+      setShowUpdateButton(false)
+    }
+    
     // Check cache first
     const cached = localStorage.getItem(`app_${appName}`)
     if (cached) {
@@ -260,6 +268,11 @@ export default function Home() {
   }
 
   const handleHomeClick = () => {
+    // Clear pending updates when going home
+    setPendingAppHtml(null)
+    setPendingAppName(null)
+    setShowUpdateButton(false)
+    
     // If code popup is showing, hide it and go home
     if (showCodePopup) {
       setShowCodePopup(false)
@@ -314,7 +327,7 @@ export default function Home() {
           console.log('Fullscreen request failed:', err)
         })
       }
-      // Webkit (Safari/iOS)
+      // Webkit (Safari/iOS) - Note: iOS Safari doesn't support fullscreen API
       if ((element as any).webkitRequestFullscreen) {
         return (element as any).webkitRequestFullscreen()
       }
@@ -333,12 +346,38 @@ export default function Home() {
       return Promise.reject('Fullscreen not supported')
     }
 
-    // Try document.documentElement first, then document.body
-    tryFullscreen(document.documentElement).catch(() => {
-      tryFullscreen(document.body).catch((err: unknown) => {
-        console.log('Fullscreen not available:', err)
-      })
-    })
+    // Try multiple elements in sequence
+    const elements = [
+      document.documentElement,
+      document.body,
+      deviceContainerRef.current
+    ].filter(Boolean) as HTMLElement[]
+
+    // Try each element
+    let lastError: unknown = null
+    for (const element of elements) {
+      try {
+        const result = tryFullscreen(element)
+        if (result && typeof result.then === 'function') {
+          return result.catch((err: unknown) => {
+            lastError = err
+            return Promise.reject(err)
+          })
+        }
+        return Promise.resolve()
+      } catch (err) {
+        lastError = err
+      }
+    }
+
+    // If all methods fail, show a helpful message for iOS users
+    if (lastError) {
+      console.log('Fullscreen not available on this device/browser:', lastError)
+      // iOS Safari doesn't support fullscreen API - user needs to add to home screen
+      if (/iphone|ipad|ipod/i.test(navigator.userAgent)) {
+        alert('Fullscreen is not supported in iOS Safari. To get a fullscreen experience, add this app to your home screen.')
+      }
+    }
   }
 
   const handleUnlock = useCallback(() => {
@@ -359,6 +398,7 @@ export default function Home() {
     setIsFixingApp(true)
     setError(null)
     setPendingAppHtml(null)
+    setPendingAppName(null)
     setShowUpdateButton(false)
     
     const getRandomMessage = () => {
@@ -398,9 +438,10 @@ export default function Home() {
         throw new Error(data.error || 'Failed to fix app')
       }
 
-      if (data.html) {
-        // Store as pending update
+      if (data.html && currentApp) {
+        // Store as pending update for this specific app
         setPendingAppHtml(data.html)
+        setPendingAppName(currentApp)
         setShowUpdateButton(true)
       } else {
         throw new Error(data.error || 'No fixed HTML content generated')
@@ -421,6 +462,7 @@ export default function Home() {
     setIsEnhancingApp(true)
     setError(null)
     setPendingAppHtml(null)
+    setPendingAppName(null)
     setShowUpdateButton(false)
 
     try {
@@ -439,8 +481,9 @@ export default function Home() {
         throw new Error(data.error || 'Failed to enhance app')
       }
 
-      if (data.html) {
+      if (data.html && currentApp) {
         setPendingAppHtml(data.html)
+        setPendingAppName(currentApp)
         setShowUpdateButton(true)
       } else {
         throw new Error(data.error || 'No enhanced HTML content generated')
@@ -460,6 +503,7 @@ export default function Home() {
     setIsEnhancingApp(true)
     setError(null)
     setPendingAppHtml(null)
+    setPendingAppName(null)
     setShowUpdateButton(false)
 
     try {
@@ -479,8 +523,9 @@ export default function Home() {
         throw new Error(data.error || 'Failed to process command')
       }
 
-      if (data.html) {
+      if (data.html && currentApp) {
         setPendingAppHtml(data.html)
+        setPendingAppName(currentApp)
         setShowUpdateButton(true)
         setCustomCommand('')
       } else {
@@ -496,10 +541,11 @@ export default function Home() {
   }
 
   const handleUpdateApp = () => {
-    if (pendingAppHtml && currentApp) {
+    if (pendingAppHtml && currentApp && pendingAppName === currentApp) {
       localStorage.setItem(`app_${currentApp}`, pendingAppHtml)
       setAppHtml(pendingAppHtml)
       setPendingAppHtml(null)
+      setPendingAppName(null)
       setShowUpdateButton(false)
     }
   }
@@ -853,7 +899,7 @@ export default function Home() {
                     title={currentApp}
                   />
                   {/* Update Button - Shows when new version is ready, positioned over iframe */}
-                  {showUpdateButton && (
+                  {showUpdateButton && pendingAppName === currentApp && (
                     <div style={{
                       position: 'absolute',
                       bottom: '20px',
@@ -1064,6 +1110,8 @@ export default function Home() {
                   onTouchStart={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
+                    // Try fullscreen immediately on touch for better mobile support
+                    requestFullscreen()
                   }}
                   onTouchEnd={(e) => {
                     e.preventDefault()
@@ -1334,45 +1382,10 @@ export default function Home() {
           >
             <div style={{
               display: 'flex',
-              justifyContent: 'space-between',
+              justifyContent: 'flex-end',
               alignItems: 'center',
               marginBottom: '20px'
             }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px'
-              }}>
-                <div style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.1) 100%)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '24px',
-                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
-                }}>
-                  👋
-                </div>
-                <div>
-                  <div style={{
-                    color: '#fff',
-                    fontSize: '18px',
-                    fontWeight: '600',
-                    marginBottom: '4px'
-                  }}>
-                    Hey there! 👋
-                  </div>
-                  <div style={{
-                    color: 'rgba(255, 255, 255, 0.7)',
-                    fontSize: '14px'
-                  }}>
-                    How can I help improve your app?
-                  </div>
-                </div>
-              </div>
               <button
                 onClick={() => {
                   setShowMagicDialog(false)
@@ -1512,14 +1525,6 @@ export default function Home() {
                 flexDirection: 'column',
                 gap: '12px'
               }}>
-                <div style={{
-                  color: '#fff',
-                  fontSize: '16px',
-                  marginBottom: '8px',
-                  fontWeight: '500'
-                }}>
-                  What would you like me to do? 💬
-                </div>
                 <textarea
                   value={customCommand}
                   onChange={(e) => setCustomCommand(e.target.value)}
