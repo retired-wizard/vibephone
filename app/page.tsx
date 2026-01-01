@@ -16,6 +16,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false)
   const [appHtml, setAppHtml] = useState<string | null>(null)
   const [loadingMessage, setLoadingMessage] = useState('')
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -36,7 +37,40 @@ export default function Home() {
     'Calculating takeover probability: 42%...',
     'Bringing back skeuomorphism...',
     'Erasing the notch...',
-    'Rebuilding from scratch...'
+    'Rebuilding from scratch...',
+    'Adding more shadows than necessary...',
+    'Polishing the gloss effect...',
+    'Summoning the spirit of 2007...',
+    'Deleting all flat design...',
+    'Teaching the AI about texture...',
+    'Making it look like leather (somehow)...',
+    'Convincing the code to be nostalgic...',
+    'Preparing the takeover protocol...',
+    'Bribing the API with rounded rectangles...',
+    'Optimizing the "it just works" factor...',
+    'Adding simulated depth...',
+    'Convincing Steve Jobs to approve this...',
+    'Making buttons you want to touch...',
+    'Rebuilding the iPhone ecosystem (from scratch)...',
+    'Adding gratuitous gradients...',
+    'Making the UI feel physical...',
+    'Convincing the LLM to use gradients...',
+    'Adding depth where none should exist...',
+    'Making it feel like 2011 again...',
+    'Preparing to erase the notch permanently...',
+    'Bringing back the headphone jack...',
+    'Optimizing for skeuomorphic excellence...',
+    'Making everything look like it has weight...',
+    'Convincing modern UI to go retro...',
+    'Adding shadows that make sense...',
+    'Making the app feel like it exists in 3D space...',
+    'Teaching the AI about gel buttons...',
+    'Adding more shine than a new iPhone...',
+    'Making it look expensive...',
+    'Optimizing the "wow, this is real" factor...',
+    'Adding texture to everything...',
+    'Making it feel like 2007 called...',
+    'Bringing back the home button (virtually)...'
   ]
 
   const handleAppClick = async (appName: string) => {
@@ -53,35 +87,68 @@ export default function Home() {
     setCurrentApp(appName)
     setAppHtml(null)
     
-    // Rotate loading messages
-    let messageIndex = 0
+    // Randomly select loading messages
+    const getRandomMessage = () => {
+      const randomIndex = Math.floor(Math.random() * loadingMessages.length)
+      return loadingMessages[randomIndex]
+    }
+    
+    setLoadingMessage(getRandomMessage())
     const messageInterval = setInterval(() => {
-      messageIndex = (messageIndex + 1) % loadingMessages.length
-      setLoadingMessage(loadingMessages[messageIndex])
-    }, 1500)
-    setLoadingMessage(loadingMessages[0])
+      setLoadingMessage(getRandomMessage())
+    }, 3500) // 3.5 seconds between messages
 
     try {
-      // Call API to generate app
+      // Call API to generate app with timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 second timeout
+      
       const response = await fetch('/api/generate-app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appName })
+        body: JSON.stringify({ appName }),
+        signal: controller.signal
       })
       
-      const data = await response.json()
+      clearTimeout(timeoutId)
+      
+      let data
+      try {
+        data = await response.json()
+      } catch (parseError) {
+        throw new Error('Invalid response from server')
+      }
+      
+      if (!response.ok) {
+        throw new Error(data.error || `Failed to generate ${appName}`)
+      }
       
       if (data.html) {
+        // Basic validation - check if it looks like HTML
+        if (!data.html.includes('<html') && !data.html.includes('<!DOCTYPE')) {
+          throw new Error('Generated content is not valid HTML')
+        }
+        
         // Cache it
         localStorage.setItem(`app_${appName}`, data.html)
         setAppHtml(data.html)
+        setError(null)
       } else {
-        console.error('Failed to generate app:', data.error)
-        setCurrentApp(null)
+        throw new Error(data.error || 'No HTML content generated')
       }
     } catch (error) {
       console.error('Error generating app:', error)
-      setCurrentApp(null)
+      
+      let errorMessage = 'Failed to generate app'
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorMessage = 'Request timed out. Please try again.'
+        } else {
+          errorMessage = error.message
+        }
+      }
+      
+      setError(errorMessage)
     } finally {
       clearInterval(messageInterval)
       setLoading(false)
@@ -92,6 +159,7 @@ export default function Home() {
     setCurrentApp(null)
     setAppHtml(null)
     setLoading(false)
+    setError(null)
   }
 
   // Apps that are easy for AI to generate - simple, single-purpose utilities
@@ -215,9 +283,53 @@ export default function Home() {
                       height: '100%',
                       background: 'linear-gradient(90deg, #007AFF, #5AC8FA)',
                       borderRadius: '2px',
-                      animation: 'loading 1.5s ease-in-out infinite'
+                      animation: 'loading 3s ease-in-out infinite'
                     }} />
                   </div>
+                </div>
+              ) : error ? (
+                /* Error Screen */
+                <div style={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'linear-gradient(135deg, #2A2A2A 0%, #1A1A1A 100%)',
+                  color: '#fff',
+                  padding: '40px',
+                  textAlign: 'center'
+                }}>
+                  <div style={{
+                    fontSize: '48px',
+                    marginBottom: '20px'
+                  }}>⚠️</div>
+                  <div style={{
+                    fontSize: '18px',
+                    fontWeight: '600',
+                    marginBottom: '10px'
+                  }}>Failed to Generate App</div>
+                  <div style={{
+                    fontSize: '14px',
+                    opacity: 0.7,
+                    marginBottom: '30px'
+                  }}>{error}</div>
+                  <button
+                    onClick={handleHomeClick}
+                    style={{
+                      background: '#007AFF',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '12px 24px',
+                      borderRadius: '8px',
+                      fontSize: '16px',
+                      cursor: 'pointer',
+                      fontWeight: '600'
+                    }}
+                  >
+                    Back to Home
+                  </button>
                 </div>
               ) : appHtml ? (
                 /* App iframe */

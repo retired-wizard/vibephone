@@ -1,166 +1,139 @@
 import { NextResponse } from 'next/server'
 
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
+const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
+
+// Map app names to their descriptions for the prompt
+const APP_DESCRIPTIONS: Record<string, string> = {
+  'Calculator': 'A fully functional calculator with basic arithmetic operations (+, -, ×, ÷), clear functions, and a numeric display. Should have a modern, dark theme with a grid of buttons.',
+  'Notes': 'A simple note-taking app with a text area for writing notes. Should allow typing, editing, and saving notes. Clean, minimal design with focus on text input.',
+  'Clock': 'A digital clock that displays the current time, updating every second. Can show time in 12-hour or 24-hour format. Simple, readable display.',
+  'Weather': 'A weather display app showing current weather conditions. Use mock/example weather data. Display temperature, condition (sunny/cloudy/etc), and maybe a weather icon.',
+  'Stopwatch': 'A stopwatch/timer with start, stop, and reset buttons. Shows elapsed time in MM:SS:MS format. Simple controls with a large time display.',
+  'Todo List': 'A todo list app where users can add tasks, check them off as complete, and delete them. Simple list interface with add/remove functionality.',
+  'Drawing': 'A simple drawing pad using HTML5 canvas. Allow drawing with mouse/touch, change colors, clear the canvas. Basic drawing tool with brush functionality.',
+  'Coin Flip': 'A coin flip simulator that randomly shows heads or tails when clicked. Fun animation and clear result display.'
+}
+
 export async function POST(request: Request) {
   const { appName } = await request.json()
   
-  // For now, return hardcoded HTML for Calculator to test the flow
-  // Later, this will call an LLM API
-  if (appName === 'Calculator') {
-    const html = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Calculator</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #000;
-      color: #fff;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      padding: 20px;
-    }
-    .calculator {
-      background: #1c1c1e;
-      border-radius: 20px;
-      padding: 20px;
-      max-width: 300px;
-      width: 100%;
-    }
-    .display {
-      background: #000;
-      color: #fff;
-      font-size: 48px;
-      text-align: right;
-      padding: 20px;
-      margin-bottom: 10px;
-      border-radius: 10px;
-      min-height: 80px;
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      word-wrap: break-word;
-    }
-    .buttons {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 10px;
-    }
-    button {
-      background: #505050;
-      color: #fff;
-      border: none;
-      font-size: 24px;
-      padding: 20px;
-      border-radius: 10px;
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
-    button:active { opacity: 0.7; }
-    button.operator { background: #ff9500; }
-    button.function { background: #a6a6a6; color: #000; }
-    button.zero { grid-column: span 2; }
-  </style>
-</head>
-<body>
-  <div class="calculator">
-    <div class="display" id="display">0</div>
-    <div class="buttons">
-      <button class="function" onclick="clearAll()">AC</button>
-      <button class="function" onclick="clearEntry()">C</button>
-      <button class="function" onclick="percent()">%</button>
-      <button class="operator" onclick="operator('/')">÷</button>
-      <button onclick="number('7')">7</button>
-      <button onclick="number('8')">8</button>
-      <button onclick="number('9')">9</button>
-      <button class="operator" onclick="operator('*')">×</button>
-      <button onclick="number('4')">4</button>
-      <button onclick="number('5')">5</button>
-      <button onclick="number('6')">6</button>
-      <button class="operator" onclick="operator('-')">−</button>
-      <button onclick="number('1')">1</button>
-      <button onclick="number('2')">2</button>
-      <button onclick="number('3')">3</button>
-      <button class="operator" onclick="operator('+')">+</button>
-      <button class="zero" onclick="number('0')">0</button>
-      <button onclick="number('.')">.</button>
-      <button class="operator" onclick="equals()">=</button>
-    </div>
-  </div>
-  <script>
-    let current = '0';
-    let previous = null;
-    let op = null;
-    
-    function updateDisplay() {
-      document.getElementById('display').textContent = current;
-    }
-    
-    function number(n) {
-      if (current === '0') current = n;
-      else current += n;
-      updateDisplay();
-    }
-    
-    function operator(o) {
-      if (previous !== null) equals();
-      previous = current;
-      current = '0';
-      op = o;
-    }
-    
-    function equals() {
-      if (previous === null || op === null) return;
-      const prev = parseFloat(previous);
-      const curr = parseFloat(current);
-      let result;
-      switch(op) {
-        case '+': result = prev + curr; break;
-        case '-': result = prev - curr; break;
-        case '*': result = prev * curr; break;
-        case '/': result = prev / curr; break;
-        default: return;
-      }
-      current = result.toString();
-      previous = null;
-      op = null;
-      updateDisplay();
-    }
-    
-    function clearAll() {
-      current = '0';
-      previous = null;
-      op = null;
-      updateDisplay();
-    }
-    
-    function clearEntry() {
-      current = '0';
-      updateDisplay();
-    }
-    
-    function percent() {
-      current = (parseFloat(current) / 100).toString();
-      updateDisplay();
-    }
-    
-    // Notify parent that app is ready
-    if (window.parent !== window) {
-      window.parent.postMessage({ type: 'app-ready', appName: 'Calculator' }, '*');
-    }
-  </script>
-</body>
-</html>
-    `
-    
-    return NextResponse.json({ html })
+  if (!OPENROUTER_API_KEY) {
+    console.error('OPENROUTER_API_KEY is not set')
+    return NextResponse.json(
+      { error: 'API key not configured' },
+      { status: 500 }
+    )
   }
-  
-  return NextResponse.json({ error: 'App not found' }, { status: 404 })
-}
 
+  const appDescription = APP_DESCRIPTIONS[appName] || `A simple ${appName} app`
+  
+  const prompt = `You are creating a single-file HTML application for a mobile device. Generate a complete, self-contained HTML file for a "${appName}" app.
+
+Requirements:
+- Single HTML file with all CSS in <style> tags and all JavaScript in <script> tags
+- Must work in a sandboxed iframe (no external resources, all code inline)
+- Mobile-friendly responsive design
+- Modern, clean UI with dark theme
+- Fully functional - all features must work
+- Include a postMessage notification when the app is ready: window.parent.postMessage({ type: 'app-ready', appName: '${appName}' }, '*')
+
+App Description: ${appDescription}
+
+Generate ONLY the HTML code. Do not include any markdown formatting, code blocks, or explanations. Start with <!DOCTYPE html> and end with </html>.`
+
+  try {
+    const response = await fetch(OPENROUTER_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+        'HTTP-Referer': process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+        'X-Title': 'VibePhone'
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-4o-mini', // Using a cost-effective model
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert web developer who creates single-file HTML applications. Always return only valid HTML code, no markdown or explanations.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 4000
+      })
+    })
+
+    if (!response.ok) {
+      let errorMessage = `API request failed: ${response.statusText}`
+      try {
+        const errorData = await response.json()
+        // OpenRouter may return detailed error messages
+        errorMessage = errorData.error?.message || errorData.error || errorMessage
+      } catch {
+        // If error response isn't JSON, use default message
+        console.error('OpenRouter API error (non-JSON):', response.status)
+      }
+      
+      // Handle specific error cases
+      if (response.status === 401) {
+        errorMessage = 'Invalid API key. Please check your OpenRouter API key.'
+      } else if (response.status === 429) {
+        errorMessage = 'Rate limit exceeded. Please try again in a moment.'
+      } else if (response.status === 402) {
+        errorMessage = 'Insufficient credits. Please check your OpenRouter account.'
+      }
+      
+      console.error('OpenRouter API error:', response.status, errorMessage)
+      return NextResponse.json(
+        { error: errorMessage },
+        { status: response.status }
+      )
+    }
+
+    let data
+    try {
+      data = await response.json()
+    } catch (error) {
+      console.error('Failed to parse API response:', error)
+      return NextResponse.json(
+        { error: 'Invalid response from API' },
+        { status: 500 }
+      )
+    }
+
+    const htmlContent = data.choices?.[0]?.message?.content?.trim()
+
+    if (!htmlContent) {
+      return NextResponse.json(
+        { error: 'No content generated by AI' },
+        { status: 500 }
+      )
+    }
+
+    // Clean up the response - remove markdown code blocks if present
+    let html = htmlContent
+      .replace(/^```html\n?/i, '')
+      .replace(/^```\n?/i, '')
+      .replace(/```\n?$/i, '')
+      .trim()
+
+    // Ensure it starts with <!DOCTYPE or <html
+    if (!html.startsWith('<!') && !html.startsWith('<html')) {
+      html = `<!DOCTYPE html>\n${html}`
+    }
+
+    return NextResponse.json({ html })
+
+  } catch (error) {
+    console.error('Error generating app:', error)
+    return NextResponse.json(
+      { error: 'Failed to generate app', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    )
+  }
+}
