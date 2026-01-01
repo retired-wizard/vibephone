@@ -34,6 +34,7 @@ export default function Home() {
   const [isMobile, setIsMobile] = useState(false)
   const [sliderPosition, setSliderPosition] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const screenAreaRef = useRef<HTMLDivElement>(null)
   const homeButtonPressTimerRef = useRef<NodeJS.Timeout | null>(null)
   const isHomeButtonPressedRef = useRef(false)
@@ -117,6 +118,38 @@ export default function Home() {
       setShowUpdateButton(false)
     }
   }, [currentApp, pendingAppName, pendingAppHtml])
+
+  // Track fullscreen state
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const checkFullscreen = () => {
+      // Check all browser variants of fullscreen API
+      const isFullscreen = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      )
+      setIsFullscreen(isFullscreen)
+    }
+
+    // Check initial state
+    checkFullscreen()
+
+    // Listen for fullscreen change events (all browser variants)
+    document.addEventListener('fullscreenchange', checkFullscreen)
+    document.addEventListener('webkitfullscreenchange', checkFullscreen)
+    document.addEventListener('mozfullscreenchange', checkFullscreen)
+    document.addEventListener('MSFullscreenChange', checkFullscreen)
+
+    return () => {
+      document.removeEventListener('fullscreenchange', checkFullscreen)
+      document.removeEventListener('webkitfullscreenchange', checkFullscreen)
+      document.removeEventListener('mozfullscreenchange', checkFullscreen)
+      document.removeEventListener('MSFullscreenChange', checkFullscreen)
+    }
+  }, [])
 
   const loadingMessages = [
     'Optimizing rounded corners...',
@@ -334,6 +367,26 @@ export default function Home() {
       setAppDescription(null)
       setCodeDescription(null)
     }
+  }
+
+  // Estimate token count (rough: ~4 characters per token, or more accurate using word count)
+  const estimateTokenCount = (text: string): number => {
+    if (!text) return 0
+    // More accurate estimation: tokens are roughly 0.75 words on average
+    // For code, tokens are often shorter (0.5-0.75 words each)
+    const words = text.split(/\s+/).length
+    const chars = text.length
+    // Use average of word-based and char-based estimates for better accuracy
+    const wordEstimate = Math.ceil(words / 0.75)
+    const charEstimate = Math.ceil(chars / 4)
+    return Math.ceil((wordEstimate + charEstimate) / 2)
+  }
+
+  // Check if app is too large to enhance (>5000 tokens)
+  const isAppTooLarge = (html: string | null): boolean => {
+    if (!html) return false
+    const tokenCount = estimateTokenCount(html)
+    return tokenCount > 5000
   }
 
   const handleHomeClick = () => {
@@ -802,31 +855,11 @@ export default function Home() {
     newPosition = Math.max(0, Math.min(newPosition, maxPosition))
     setSliderPosition(newPosition)
 
-    // If dragged far enough (80% of track), unlock
-    if (newPosition > maxPosition * 0.8) {
+    // Just track position - unlock will happen in touchend for mobile
+    // For mouse events, we can unlock immediately since desktop doesn't need fullscreen gesture
+    if ('touches' in e === false && newPosition > maxPosition * 0.8) {
       setIsDragging(false)
       setSliderPosition(0)
-      // Try to request fullscreen directly from the interaction event
-      const requestFullscreenNow = () => {
-        const tryElement = (el: HTMLElement) => {
-          if (el.requestFullscreen) return el.requestFullscreen()
-          if ((el as any).webkitRequestFullscreen) return (el as any).webkitRequestFullscreen()
-          if ((el as any).webkitEnterFullscreen) return (el as any).webkitEnterFullscreen()
-          if ((el as any).msRequestFullscreen) return (el as any).msRequestFullscreen()
-          if ((el as any).mozRequestFullScreen) return (el as any).mozRequestFullScreen()
-          return Promise.reject()
-        }
-        tryElement(document.documentElement).catch(() => {
-          tryElement(document.body).catch(() => {
-            // Fallback: try after a small delay
-            setTimeout(() => {
-              tryElement(document.documentElement).catch(() => {})
-            }, 100)
-          })
-        })
-      }
-      // Request immediately while we're still in the touch event
-      requestFullscreenNow()
       handleUnlock()
     }
   }
@@ -1118,7 +1151,7 @@ export default function Home() {
                 <div style={{ position: 'relative', width: '100%', height: '100%', pointerEvents: 'auto' }}>
                   <iframe
                     srcDoc={appHtml}
-                    sandbox="allow-scripts allow-same-origin"
+                    sandbox="allow-scripts allow-same-origin allow-forms"
                     style={{
                       width: '100%',
                       height: '100%',
@@ -1329,8 +1362,8 @@ export default function Home() {
               padding: '12px',
               pointerEvents: 'none'
             }}>
-              {/* Fullscreen Test Button - Bottom left for testing */}
-              {isMobile && (
+              {/* Fullscreen Test Button - Bottom left for testing, only show when NOT in fullscreen */}
+              {isMobile && !isFullscreen && (
                 <button
                   onClick={(e) => {
                     e.preventDefault()
@@ -1497,10 +1530,14 @@ export default function Home() {
             handleHomeButtonRelease()
           }}
           onTouchStart={(e) => {
+            e.preventDefault() // Prevent click event and scrolling
+            e.stopPropagation()
             e.currentTarget.style.transform = 'scale(0.92)'
             handleHomeButtonPress()
           }}
           onTouchEnd={(e) => {
+            e.preventDefault() // Prevent click event
+            e.stopPropagation()
             e.currentTarget.style.transform = 'scale(1)'
             const wasLongPress = longPressOccurredRef.current
             handleHomeButtonRelease()
@@ -1508,10 +1545,25 @@ export default function Home() {
             if (!wasLongPress) {
               handleHomeClick()
             }
+            // Reset long press flag
+            longPressOccurredRef.current = false
           }}
           onTouchCancel={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
             e.currentTarget.style.transform = 'scale(1)'
             handleHomeButtonRelease()
+            longPressOccurredRef.current = false
+          }}
+          onClick={(e) => {
+            // Prevent click from firing if we already handled it via touch
+            // Only handle click if it wasn't a touch event (mouse click on desktop)
+            if ('ontouchstart' in window === false) {
+              const wasLongPress = longPressOccurredRef.current
+              if (!wasLongPress) {
+                handleHomeClick()
+              }
+            }
           }}
           >
             {/* Inner button circle */}
@@ -1739,39 +1791,41 @@ export default function Home() {
                   <span>Fix</span>
                 </button>
 
-                {/* Magic Sparkle Button */}
-                <button
-                  onClick={handleEnhanceApp}
-                  disabled={isFixingApp || isEnhancingApp}
-                  style={{
-                    background: 'linear-gradient(135deg, #9B59B6 0%, #8E44AD 50%, #7D3C98 100%)',
-                    color: '#fff',
-                    border: 'none',
-                    padding: '16px',
-                    borderRadius: '12px',
-                    fontSize: '16px',
-                    fontWeight: '600',
-                    cursor: (isFixingApp || isEnhancingApp) ? 'not-allowed' : 'pointer',
-                    opacity: (isFixingApp || isEnhancingApp) ? 0.6 : 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '10px',
-                    boxShadow: '0 2px 8px rgba(155, 89, 182, 0.3)',
-                    transition: 'transform 0.1s ease'
-                  }}
-                  onMouseDown={(e) => {
-                    if (!isFixingApp && !isEnhancingApp) {
-                      e.currentTarget.style.transform = 'scale(0.97)'
-                    }
-                  }}
-                  onMouseUp={(e) => {
-                    e.currentTarget.style.transform = 'scale(1)'
-                  }}
-                >
-                  <span>✨</span>
-                  <span>Enhance</span>
-                </button>
+                {/* Magic Sparkle Button - Only show if app is below 5000 tokens */}
+                {!isAppTooLarge(appHtml) && (
+                  <button
+                    onClick={handleEnhanceApp}
+                    disabled={isFixingApp || isEnhancingApp}
+                    style={{
+                      background: 'linear-gradient(135deg, #9B59B6 0%, #8E44AD 50%, #7D3C98 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '16px',
+                      borderRadius: '12px',
+                      fontSize: '16px',
+                      fontWeight: '600',
+                      cursor: (isFixingApp || isEnhancingApp) ? 'not-allowed' : 'pointer',
+                      opacity: (isFixingApp || isEnhancingApp) ? 0.6 : 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '10px',
+                      boxShadow: '0 2px 8px rgba(155, 89, 182, 0.3)',
+                      transition: 'transform 0.1s ease'
+                    }}
+                    onMouseDown={(e) => {
+                      if (!isFixingApp && !isEnhancingApp) {
+                        e.currentTarget.style.transform = 'scale(0.97)'
+                      }
+                    }}
+                    onMouseUp={(e) => {
+                      e.currentTarget.style.transform = 'scale(1)'
+                    }}
+                  >
+                    <span>✨</span>
+                    <span>Enhance</span>
+                  </button>
+                )}
 
                 {/* Pen and Paper Button */}
                 <button

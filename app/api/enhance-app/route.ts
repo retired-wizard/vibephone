@@ -31,7 +31,15 @@ export async function POST(request: Request) {
 
 Keep all existing functionality intact while adding new features on top. Make the app more feature-rich and impressive.
 
-IMPORTANT - Code Efficiency:
+IMPORTANT - Auto-Optimize Existing Code:
+- BEFORE adding new features, review and optimize the existing code
+- Remove redundant code, consolidate duplicate functions, simplify complex logic
+- Optimize CSS: merge duplicate styles, use efficient selectors, remove unused styles
+- Refactor JavaScript: combine similar functions, reduce code duplication, improve efficiency
+- The goal is to make the code BETTER and ideally SMALLER even after adding features
+- Optimize existing code first, then add new features efficiently on top
+
+Code Efficiency Requirements:
 - Write streamlined, efficient code - avoid redundancy and unnecessary complexity
 - Use concise, optimized implementations rather than verbose code
 - Reuse code where possible (shared functions, DRY principles)

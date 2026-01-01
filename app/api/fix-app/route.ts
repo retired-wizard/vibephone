@@ -89,7 +89,7 @@ Do NOT use markdown code blocks. Build a fresh, working version of the app that 
           }
         ],
         temperature: 0.7,
-        max_tokens: 4000
+        max_tokens: 8000
       })
     })
 
@@ -139,15 +139,6 @@ Do NOT use markdown code blocks. Build a fresh, working version of the app that 
       )
     }
 
-    // Check if response was truncated
-    if (finishReason === 'length') {
-      console.warn('API response was truncated due to token limit')
-      return NextResponse.json(
-        { error: 'Response was too long and got truncated. Please try with a smaller app or increase token limit.' },
-        { status: 500 }
-      )
-    }
-
     // Parse description and HTML from response
     const descriptionMatch = content.match(/===DESCRIPTION===\s*([\s\S]*?)\s*===END_DESCRIPTION===/i)
     let newDescription = ''
@@ -183,6 +174,15 @@ Do NOT use markdown code blocks. Build a fresh, working version of the app that 
     const htmlLower = html.toLowerCase()
     const hasClosingHtml = htmlLower.includes('</html>')
     
+    // Check if response was truncated - only reject if HTML is actually incomplete
+    if (finishReason === 'length' && !hasClosingHtml) {
+      console.warn('API response was truncated and HTML is incomplete')
+      return NextResponse.json(
+        { error: 'Response was too long and got truncated. The generated HTML is incomplete. Please try again or the app may need to be simplified.' },
+        { status: 500 }
+      )
+    }
+    
     // If HTML has any opening HTML structure, it must have a closing tag
     if ((htmlLower.includes('<!doctype') || htmlLower.includes('<html')) && !hasClosingHtml) {
       console.error('HTML is incomplete - missing closing </html> tag')
@@ -190,6 +190,11 @@ Do NOT use markdown code blocks. Build a fresh, working version of the app that 
         { error: 'Generated HTML is incomplete and missing closing tags. The response may have been truncated.' },
         { status: 500 }
       )
+    }
+    
+    // If finish reason was 'length' but HTML is complete, log a warning but accept it
+    if (finishReason === 'length') {
+      console.warn('API response finish_reason was "length" but HTML appears complete - accepting response')
     }
 
     return NextResponse.json({ html, description: newDescription })
