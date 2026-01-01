@@ -40,6 +40,7 @@ export default function Home() {
   const sliderRef = useRef<HTMLDivElement>(null)
   const sliderTrackRef = useRef<HTMLDivElement>(null)
   const deviceContainerRef = useRef<HTMLDivElement>(null)
+  const fullscreenAttemptRef = useRef<number>(0)
   // Generate version once per build - uses build timestamp or current time as fallback
   const [buildVersion] = useState(() => {
     if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_BUILD_VERSION) {
@@ -59,8 +60,8 @@ export default function Home() {
       }
     })
 
-    // Detect if mobile device
-    const checkMobile = () => {
+    // Detect if mobile device (only on mount)
+    const checkMobileInitial = () => {
       if (typeof window === 'undefined') return
       
       const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera
@@ -77,9 +78,22 @@ export default function Home() {
       }
     }
 
-    checkMobile()
-    window.addEventListener('resize', checkMobile)
-    return () => window.removeEventListener('resize', checkMobile)
+    // Handle resize (only update mobile detection, don't reset lock state)
+    const handleResize = () => {
+      if (typeof window === 'undefined') return
+      
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera
+      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase()) ||
+        (window.innerWidth <= 768 && 'ontouchstart' in window)
+      setIsMobile(isMobileDevice)
+      
+      // Don't reset lock state on resize - preserve user's unlock state
+      // This prevents the lock screen from reappearing when keyboard appears
+    }
+
+    checkMobileInitial()
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
   }, [])
 
   useEffect(() => {
@@ -450,13 +464,34 @@ export default function Home() {
   }
 
   const handleUnlock = useCallback(() => {
-    // Request fullscreen immediately during user interaction
-    // Use requestAnimationFrame to ensure it's within the interaction context
-    requestAnimationFrame(() => {
-      requestFullscreen()
-    })
-    
     setIsLocked(false)
+    
+    // Request fullscreen immediately during user interaction
+    // Must be called synchronously from user gesture - no requestAnimationFrame delay
+    // Mobile browsers require fullscreen to be in the direct user gesture handler
+    const tryFullscreenDirect = (element: HTMLElement) => {
+      try {
+        if (element.requestFullscreen) {
+          element.requestFullscreen().catch(() => {})
+        } else if ((element as any).webkitRequestFullscreen) {
+          (element as any).webkitRequestFullscreen()
+        } else if ((element as any).webkitEnterFullscreen) {
+          (element as any).webkitEnterFullscreen()
+        } else if ((element as any).msRequestFullscreen) {
+          (element as any).msRequestFullscreen()
+        } else if ((element as any).mozRequestFullScreen) {
+          (element as any).mozRequestFullScreen()
+        }
+      } catch (err) {
+        console.log('Fullscreen failed:', err)
+      }
+    }
+    
+    // Try immediately - mobile browsers require this to be in the user gesture handler
+    tryFullscreenDirect(document.documentElement)
+    // Fallback to body after small delay
+    setTimeout(() => tryFullscreenDirect(document.body), 10)
+    
     // Don't persist unlock state - lock screen will show again on next reload
   }, [])
 
@@ -1272,13 +1307,71 @@ export default function Home() {
                   onClick={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
-                    requestFullscreen()
+                    
+                    // Prevent multiple rapid calls (within 500ms)
+                    const now = Date.now()
+                    if (now - fullscreenAttemptRef.current < 500) {
+                      return
+                    }
+                    fullscreenAttemptRef.current = now
+                    
+                    // Call fullscreen directly and synchronously from user interaction
+                    const tryFullscreenDirect = (element: HTMLElement) => {
+                      try {
+                        if (element.requestFullscreen) {
+                          element.requestFullscreen().catch(() => {})
+                        } else if ((element as any).webkitRequestFullscreen) {
+                          (element as any).webkitRequestFullscreen()
+                        } else if ((element as any).webkitEnterFullscreen) {
+                          (element as any).webkitEnterFullscreen()
+                        } else if ((element as any).msRequestFullscreen) {
+                          (element as any).msRequestFullscreen()
+                        } else if ((element as any).mozRequestFullScreen) {
+                          (element as any).mozRequestFullScreen()
+                        }
+                      } catch (err) {
+                        console.log('Fullscreen failed:', err)
+                      }
+                    }
+                    // Try document element first
+                    tryFullscreenDirect(document.documentElement)
+                    // Also try body as fallback
+                    setTimeout(() => tryFullscreenDirect(document.body), 10)
                   }}
                   onTouchStart={(e) => {
                     e.preventDefault()
                     e.stopPropagation()
-                    // Try fullscreen immediately on touch for better mobile support
-                    requestFullscreen()
+                    
+                    // Prevent multiple rapid calls (within 500ms)
+                    const now = Date.now()
+                    if (now - fullscreenAttemptRef.current < 500) {
+                      return
+                    }
+                    fullscreenAttemptRef.current = now
+                    
+                    // Call fullscreen directly and synchronously from touch event
+                    // Mobile browsers require this to be in the user gesture handler
+                    const tryFullscreenDirect = (element: HTMLElement) => {
+                      try {
+                        if (element.requestFullscreen) {
+                          element.requestFullscreen().catch(() => {})
+                        } else if ((element as any).webkitRequestFullscreen) {
+                          (element as any).webkitRequestFullscreen()
+                        } else if ((element as any).webkitEnterFullscreen) {
+                          (element as any).webkitEnterFullscreen()
+                        } else if ((element as any).msRequestFullscreen) {
+                          (element as any).msRequestFullscreen()
+                        } else if ((element as any).mozRequestFullScreen) {
+                          (element as any).mozRequestFullScreen()
+                        }
+                      } catch (err) {
+                        console.log('Fullscreen failed:', err)
+                      }
+                    }
+                    // Try document element first
+                    tryFullscreenDirect(document.documentElement)
+                    // Also try body as fallback
+                    setTimeout(() => tryFullscreenDirect(document.body), 10)
                   }}
                   onTouchEnd={(e) => {
                     e.preventDefault()
