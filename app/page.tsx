@@ -1020,11 +1020,11 @@ export default function Home() {
                   {/* App Label - Authentic iOS typography */}
                   <span style={{
                     fontSize: '10px',
-                    color: '#000',
+                    color: '#fff',
                     fontWeight: '400',
                     textAlign: 'center',
                     fontFamily: 'Helvetica Neue',
-                    textShadow: '0 0.5px 0.5px rgba(255, 255, 255, 0.8)',
+                    textShadow: '0 0.5px 0.5px rgba(0, 0, 0, 0.8)',
                     maxWidth: '57px',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -1041,6 +1041,66 @@ export default function Home() {
                 </div>
               ))}
             </div>
+            
+            {/* Bottom bar with version and fullscreen button */}
+            <div style={{
+              position: 'absolute',
+              bottom: '0',
+              left: '0',
+              right: '0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '12px',
+              pointerEvents: 'none'
+            }}>
+              {/* Fullscreen Test Button - Bottom left for testing */}
+              {isMobile && (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    requestFullscreen()
+                  }}
+                  onTouchStart={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                  }}
+                  onTouchEnd={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                  }}
+                  style={{
+                    background: 'linear-gradient(135deg, #34C759 0%, #28A745 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(52, 199, 89, 0.4)',
+                    pointerEvents: 'auto',
+                    zIndex: 1000
+                  }}
+                >
+                  Fullscreen
+                </button>
+              )}
+              
+              {/* Version indicator - Bottom right corner */}
+              <div style={{
+                fontSize: '9px',
+                color: 'rgba(255, 255, 255, 0.4)',
+                fontFamily: 'Helvetica Neue',
+                fontWeight: '300',
+                letterSpacing: '0.3px',
+                userSelect: 'none',
+                WebkitUserSelect: 'none'
+              }}>
+                v1.0.0
+              </div>
+            </div>
           </div>
           )}
         </div>
@@ -1053,41 +1113,18 @@ export default function Home() {
           padding: '12px 20px',
           position: 'relative'
         }}>
-          {/* Fullscreen Test Button - Bottom left for testing */}
-          {isMobile && (
-            <button
-              onClick={requestFullscreen}
-              style={{
-                position: 'absolute',
-                left: '20px',
-                background: 'linear-gradient(135deg, #34C759 0%, #28A745 100%)',
-                color: '#fff',
-                border: 'none',
-                padding: '8px 16px',
-                borderRadius: '8px',
-                fontSize: '12px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                boxShadow: '0 2px 6px rgba(52, 199, 89, 0.4)',
-                zIndex: 10
-              }}
-            >
-              Fullscreen
-            </button>
-          )}
-          
           {/* Home Button - Authentic iPhone 3G/3GS/4 style */}
           <div style={{
             position: 'relative',
             width: '56px',
             height: '56px',
             borderRadius: '50%',
-            background: 'linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 50%, #0a0a0a 100%)',
-            border: '2px solid rgba(0, 0, 0, 0.8)',
+            background: 'linear-gradient(135deg, #ffffff 0%, #f5f5f5 50%, #e0e0e0 100%)',
+            border: '2px solid rgba(200, 200, 200, 0.8)',
             boxShadow: 
-              '0 2px 6px rgba(0, 0, 0, 0.6),' +
-              'inset 0 1px 2px rgba(255, 255, 255, 0.08),' +
-              'inset 0 -1px 2px rgba(0, 0, 0, 0.5)',
+              '0 2px 6px rgba(0, 0, 0, 0.3),' +
+              'inset 0 1px 2px rgba(255, 255, 255, 0.8),' +
+              'inset 0 -1px 2px rgba(0, 0, 0, 0.2)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -1098,9 +1135,9 @@ export default function Home() {
           onMouseDown={(e) => {
             e.currentTarget.style.transform = 'scale(0.92)'
             e.currentTarget.style.boxShadow = 
-              '0 1px 3px rgba(0, 0, 0, 0.6),' +
-              'inset 0 1px 2px rgba(255, 255, 255, 0.05),' +
-              'inset 0 -1px 2px rgba(0, 0, 0, 0.6)'
+              '0 1px 3px rgba(0, 0, 0, 0.3),' +
+              'inset 0 1px 2px rgba(255, 255, 255, 0.6),' +
+              'inset 0 -1px 2px rgba(0, 0, 0, 0.3)'
             handleHomeButtonPress()
           }}
           onMouseUp={(e) => {
@@ -1147,9 +1184,9 @@ export default function Home() {
               width: '40px',
               height: '40px',
               borderRadius: '50%',
-              border: '1px solid rgba(0, 0, 0, 0.6)',
-              background: 'radial-gradient(circle at 35% 35%, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 40%, transparent 70%)',
-              boxShadow: 'inset 0 1px 1px rgba(255, 255, 255, 0.1)'
+              border: '1px solid rgba(150, 150, 150, 0.4)',
+              background: 'radial-gradient(circle at 35% 35%, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.02) 40%, transparent 70%)',
+              boxShadow: 'inset 0 1px 1px rgba(255, 255, 255, 0.6)'
             }} />
           </div>
 
