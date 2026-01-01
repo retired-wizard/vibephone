@@ -147,14 +147,23 @@ export default function Home() {
   ]
 
   const handleAppClick = async (appName: string) => {
-    // Clear pending updates if they're for a different app
-    if (pendingAppName && pendingAppName !== appName) {
-      setPendingAppHtml(null)
-      setPendingAppName(null)
-      setShowUpdateButton(false)
+    // If clicking the same app that's already loaded, do nothing
+    if (currentApp === appName && appHtml && !loading) {
+      return
     }
     
-    // Check cache first
+    // Stop any ongoing loading for a different app
+    setLoadingAppName((prev) => {
+      if (prev && prev !== appName) {
+        setLoading(false)
+      }
+      return prev
+    })
+    
+    // Don't clear pending updates - they're tied to specific apps and should persist
+    // The update button will only show when viewing the correct app (handled by useEffect)
+    
+    // Check cache first - this handles returning to an app that was previously loaded
     const cached = localStorage.getItem(`app_${appName}`)
     if (cached) {
       setAppHtml(cached)
@@ -162,6 +171,13 @@ export default function Home() {
       setLoadingAppName(null)
       setLoading(false)
       setError(null)
+      // Don't clear pending updates - they'll show if this app has one (handled by useEffect)
+      return
+    }
+
+    // Prevent loading if an update is in progress (but allow if updating a different app)
+    if ((isFixingApp || isEnhancingApp) && currentApp === appName) {
+      // If we're updating this specific app, don't start a new load
       return
     }
 
@@ -169,6 +185,7 @@ export default function Home() {
     setLoading(true)
     setCurrentApp(appName)
     setAppHtml(null)
+    setError(null)
     setLoadingAppName(appName)
     
     // Randomly select loading messages
@@ -234,46 +251,54 @@ export default function Home() {
           throw new Error('Generated content is not valid HTML')
         }
         
-        // Only update if we're still loading this specific app (user hasn't switched away)
-        if (currentApp === appName && loadingAppName === appName) {
-          // Cache it
-          localStorage.setItem(`app_${appName}`, data.html)
-          setAppHtml(data.html)
-          setError(null)
-          setLoading(false)
-          setLoadingAppName(null)
-        } else {
-          // User switched apps, but we should still cache the result for later
-          localStorage.setItem(`app_${appName}`, data.html)
-        }
+        // Always cache it first - even if user switched apps
+        localStorage.setItem(`app_${appName}`, data.html)
+        
+        // Only update UI if we're still loading this specific app
+        // Use functional state updates to get current values
+        setLoadingAppName((prevLoadingApp) => {
+          setCurrentApp((prevApp) => {
+            // If we're still on this app and still loading it, update the UI
+            if (prevLoadingApp === appName && prevApp === appName) {
+              setAppHtml(data.html)
+              setError(null)
+              setLoading(false)
+              return prevApp
+            }
+            // User switched apps or is viewing different app, but we cached it
+            return prevApp
+          })
+          // Clear loading state if this was the app being loaded
+          return prevLoadingApp === appName ? null : prevLoadingApp
+        })
       } else {
         throw new Error(data.error || 'No HTML content generated')
       }
     } catch (error) {
       console.error('Error generating app:', error)
       
-      // Only show error if we're still on this app
-      if (currentApp === appName && loadingAppName === appName) {
-        let errorMessage = 'Failed to generate app'
-        if (error instanceof Error) {
-          if (error.name === 'AbortError') {
-            errorMessage = 'Request timed out. Please try again.'
-          } else {
-            errorMessage = error.message
+      // Only show error if we're still loading this app
+      setLoadingAppName((prevLoadingApp) => {
+        setCurrentApp((prevApp) => {
+          if (prevLoadingApp === appName && prevApp === appName) {
+            let errorMessage = 'Failed to generate app'
+            if (error instanceof Error) {
+              if (error.name === 'AbortError') {
+                errorMessage = 'Request timed out. Please try again.'
+              } else {
+                errorMessage = error.message
+              }
+            }
+            
+            setError(errorMessage)
+            setLoading(false)
           }
-        }
-        
-        setError(errorMessage)
-        setLoading(false)
-        setLoadingAppName(null)
-      }
+          return prevApp
+        })
+        return prevLoadingApp === appName ? null : prevLoadingApp
+      })
     } finally {
       clearInterval(messageInterval)
-      // Only clear loading state if we're still on the app that was loading
-      if (currentApp === appName && loadingAppName === appName) {
-        setLoading(false)
-        setLoadingAppName(null)
-      }
     }
   }
 
@@ -308,7 +333,7 @@ export default function Home() {
   }
 
   const handleHomeClick = () => {
-    // Clear loading state when going home
+    // Stop any ongoing loading when going home
     setLoading(false)
     setLoadingAppName(null)
     
@@ -325,11 +350,13 @@ export default function Home() {
       setError(null)
       return
     }
+    
     // Otherwise go home
     setCurrentApp(null)
     setAppHtml(null)
     setLoading(false)
     setError(null)
+    // Note: Don't clear pending updates or update states - they persist across navigation
   }
 
   const handleHomeButtonPress = () => {
@@ -434,18 +461,26 @@ export default function Home() {
   }, [])
 
   const handleFrustrationButton = async () => {
-    if (!currentApp || !appHtml || isFixingApp || isEnhancingApp) return
+    // Prevent update if app is loading or already updating
+    if (!currentApp || !appHtml || isFixingApp || isEnhancingApp || loading) return
 
-    // Capture the app name at the start to avoid race conditions
+    // Capture the app name and HTML at the start to avoid race conditions
     const appBeingUpdated = currentApp
     const currentHtml = appHtml
 
     setShowMagicDialog(false)
     setIsFixingApp(true)
     setError(null)
-    setPendingAppHtml(null)
-    setPendingAppName(null)
-    setShowUpdateButton(false)
+    // Clear any existing pending update for this app (we're creating a new one)
+    setPendingAppHtml((prev) => {
+      setPendingAppName((prevName) => {
+        if (prevName === appBeingUpdated) {
+          setShowUpdateButton(false)
+        }
+        return prevName
+      })
+      return prev
+    })
     
     const getRandomMessage = () => {
       const messages = [
@@ -497,9 +532,13 @@ export default function Home() {
         setPendingAppHtml(data.html)
         setPendingAppName(appBeingUpdated)
         // Only show update button if we're still on the app that was being updated
-        if (currentApp === appBeingUpdated) {
-          setShowUpdateButton(true)
-        }
+        // Use functional state update to get current value
+        setCurrentApp((prevApp) => {
+          if (prevApp === appBeingUpdated) {
+            setShowUpdateButton(true)
+          }
+          return prevApp
+        })
       } else {
         throw new Error(data.error || 'No fixed HTML content generated')
       }
@@ -513,18 +552,26 @@ export default function Home() {
   }
 
   const handleEnhanceApp = async () => {
-    if (!currentApp || !appHtml || isFixingApp || isEnhancingApp) return
+    // Prevent update if app is loading or already updating
+    if (!currentApp || !appHtml || isFixingApp || isEnhancingApp || loading) return
 
-    // Capture the app name at the start to avoid race conditions
+    // Capture the app name and HTML at the start to avoid race conditions
     const appBeingUpdated = currentApp
     const currentHtml = appHtml
 
     setShowMagicDialog(false)
     setIsEnhancingApp(true)
     setError(null)
-    setPendingAppHtml(null)
-    setPendingAppName(null)
-    setShowUpdateButton(false)
+    // Clear any existing pending update for this app (we're creating a new one)
+    setPendingAppHtml((prev) => {
+      setPendingAppName((prevName) => {
+        if (prevName === appBeingUpdated) {
+          setShowUpdateButton(false)
+        }
+        return prevName
+      })
+      return prev
+    })
 
     try {
       const response = await fetch('/api/enhance-app', {
@@ -554,9 +601,12 @@ export default function Home() {
         setPendingAppHtml(data.html)
         setPendingAppName(appBeingUpdated)
         // Only show update button if we're still on the app that was being updated
-        if (currentApp === appBeingUpdated) {
-          setShowUpdateButton(true)
-        }
+        setCurrentApp((prevApp) => {
+          if (prevApp === appBeingUpdated) {
+            setShowUpdateButton(true)
+          }
+          return prevApp
+        })
       } else {
         throw new Error(data.error || 'No enhanced HTML content generated')
       }
@@ -569,9 +619,10 @@ export default function Home() {
   }
 
   const handleCustomCommand = async () => {
-    if (!currentApp || !appHtml || isFixingApp || isEnhancingApp || !customCommand.trim()) return
+    // Prevent update if app is loading, already updating, or no command provided
+    if (!currentApp || !appHtml || isFixingApp || isEnhancingApp || loading || !customCommand.trim()) return
 
-    // Capture the app name and command at the start to avoid race conditions
+    // Capture the app name, HTML, and command at the start to avoid race conditions
     const appBeingUpdated = currentApp
     const currentHtml = appHtml
     const commandText = customCommand.trim()
@@ -579,9 +630,16 @@ export default function Home() {
     setShowMagicDialog(false)
     setIsEnhancingApp(true)
     setError(null)
-    setPendingAppHtml(null)
-    setPendingAppName(null)
-    setShowUpdateButton(false)
+    // Clear any existing pending update for this app (we're creating a new one)
+    setPendingAppHtml((prev) => {
+      setPendingAppName((prevName) => {
+        if (prevName === appBeingUpdated) {
+          setShowUpdateButton(false)
+        }
+        return prevName
+      })
+      return prev
+    })
 
     try {
       const response = await fetch('/api/custom-command', {
@@ -612,9 +670,12 @@ export default function Home() {
         setPendingAppHtml(data.html)
         setPendingAppName(appBeingUpdated)
         // Only show update button if we're still on the app that was being updated
-        if (currentApp === appBeingUpdated) {
-          setShowUpdateButton(true)
-        }
+        setCurrentApp((prevApp) => {
+          if (prevApp === appBeingUpdated) {
+            setShowUpdateButton(true)
+          }
+          return prevApp
+        })
         setCustomCommand('')
       } else {
         throw new Error(data.error || 'No modified HTML content generated')
@@ -629,13 +690,31 @@ export default function Home() {
   }
 
   const handleUpdateApp = () => {
-    if (pendingAppHtml && currentApp && pendingAppName === currentApp) {
-      localStorage.setItem(`app_${currentApp}`, pendingAppHtml)
-      setAppHtml(pendingAppHtml)
-      setPendingAppHtml(null)
-      setPendingAppName(null)
-      setShowUpdateButton(false)
-    }
+    // Use functional state updates to ensure we have current values
+    setPendingAppHtml((prevPendingHtml) => {
+      if (!prevPendingHtml) return null
+      
+      setPendingAppName((prevPendingName) => {
+        if (!prevPendingName) return null
+        
+        setCurrentApp((prevApp) => {
+          // Only update if we're on the correct app and have pending HTML
+          if (prevApp === prevPendingName) {
+            // Cache the updated version
+            localStorage.setItem(`app_${prevApp}`, prevPendingHtml)
+            setAppHtml(prevPendingHtml)
+            setShowUpdateButton(false)
+          }
+          return prevApp
+        })
+        
+        // Clear pending app name since we're applying the update
+        return null
+      })
+      
+      // Clear pending HTML since we're applying the update
+      return null
+    })
   }
 
   const handleSliderStart = (e: React.MouseEvent | React.TouchEvent) => {
