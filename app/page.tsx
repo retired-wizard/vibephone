@@ -664,7 +664,7 @@ export default function Home() {
     { name: 'Todo List', icon: '📋', gradient: 'linear-gradient(135deg, #D85A5A 0%, #C84A4A 100%)' },
     { name: 'Drawing', icon: '✏️', gradient: 'linear-gradient(135deg, #C8C8CC 0%, #B8B8BD 100%)' },
     { name: 'Coin Flip', icon: '🪙', gradient: 'linear-gradient(135deg, #8E6FB5 0%, #7E5FA5 100%)' },
-    { name: 'Snake', icon: '🐍', gradient: 'linear-gradient(135deg, #27AE60 0%, #229954 100%)' },
+    { name: 'Snake', icon: '🐍', gradient: 'linear-gradient(135deg, #27AE60 0%, #229954 100%)' }
   ]
 
   return (
@@ -713,7 +713,7 @@ export default function Home() {
 
       {/* Main Device - Hidden when locked on mobile */}
       <div ref={deviceContainerRef} className="device-container" style={{ display: isMobile && isLocked ? 'none' : 'flex', position: 'relative' }}>
-      {/* Device Bezel - 9:16 aspect ratio, fullscreen on mobile */}
+        {/* Device Bezel - 9:16 aspect ratio, fullscreen on mobile */}
       <div className="device-bezel">
         {/* Screen Area - 9:16 aspect ratio */}
         <div ref={screenAreaRef} className="screen-area">
@@ -921,7 +921,6 @@ export default function Home() {
                       </button>
                     </div>
                   )}
-                </div>
                 </div>
               ) : null}
             </div>
@@ -1436,7 +1435,7 @@ export default function Home() {
                   }}
                 >
                   <span>😤</span>
-                  <span>Fix what's broken</span>
+                  <span>Fix what&apos;s broken</span>
                 </button>
 
                 {/* Magic Sparkle Button */}
