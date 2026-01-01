@@ -21,43 +21,61 @@ export async function POST(request: Request) {
     )
   }
 
-  const prompt = `The user is frustrated with this "${appName}" app. Please analyze the HTML code below and identify what might be causing frustration. 
+  const prompt = `Fix the "${appName}" app. The user is frustrated - find and fix ALL issues.
 
-SPECIFIC CHECKS TO PERFORM:
-1. **Button Functionality**: Verify that EVERY button in the app actually does something when pressed. Test all click handlers and event listeners. If any button doesn't work or doesn't have proper event handlers, fix it.
-2. **Visibility**: Ensure that ALL content is visible on the screen within the viewport. Check for elements that might be cut off, hidden, or positioned outside the visible area.
-3. **Scrolling**: If there is content that extends beyond the visible screen area, ensure that scrolling is properly implemented and functional. Add overflow scrolling where needed so users can access all content.
+ANALYSIS PROCESS:
+1. Read through the entire HTML code systematically
+2. Identify every issue that could cause frustration (see checklists below)
+3. Fix all identified issues
+4. Return the complete, corrected HTML
 
-ADDITIONAL COMMON ISSUES TO CHECK:
-- Broken functionality (buttons not working, features not functioning)
-- Poor user experience (unresponsive UI, confusing layout, hard to use)
-- Bugs or errors in the JavaScript code
-- Styling issues (elements overlapping, text cut off, colors hard to read)
-- Missing features or incomplete functionality
-- Performance issues
-- Accessibility problems
+CRITICAL CHECKS (MANDATORY):
+1. **Button Functionality**:
+   - Find ALL buttons, links, and clickable elements
+   - For each: verify it has an event handler (onclick, addEventListener)
+   - For each: verify the handler performs the correct action
+   - Examples: "Add" adds items, "Calculate" performs calculation, "Start" starts functionality, "Delete" removes items
+   - Fix any missing handlers or non-functional buttons
 
-After identifying the issues, fix them and return an improved version of the HTML.
+2. **Content Visibility**:
+   - All content must be visible within the viewport
+   - No elements cut off, hidden, or positioned off-screen
+   - Fix any overflow or positioning issues
+
+3. **Scrolling**:
+   - If content exceeds viewport, scrolling must work
+   - Add overflow-y: auto or scroll to containers with overflow
+   - Ensure users can access all content
+
+COMPREHENSIVE ISSUE CHECKLIST:
+Review the code for:
+✓ Broken functionality (features not working)
+✓ JavaScript errors or bugs
+✓ Logic errors in calculations/data processing
+✓ Missing error handling
+✓ Styling problems (overlapping elements, cut-off text, poor contrast)
+✓ Incomplete implementations
+✓ Confusing UI/UX patterns
+✓ Broken user flows
+✓ Performance issues
+✓ Accessibility problems
+✓ Any other bugs preventing smooth operation
+
+Note: Do not limit yourself to this checklist. Perform a thorough code review and fix ANY issues you find.
 
 Current HTML code:
 \`\`\`html
 ${currentHtml}
 \`\`\`
 
-Requirements:
-- Return ONLY the complete, fixed HTML code
-- Keep it as a single-file HTML application (all CSS in <style> tags, all JavaScript in <script> tags)
-- Ensure all features work correctly
-- **CRITICAL**: Verify every button has a working click handler and actually performs an action
-- **CRITICAL**: Ensure all content fits within the viewport or has proper scrolling implemented
-- **CRITICAL**: If content extends beyond screen, add overflow-y: auto or scroll functionality
-- Improve user experience based on the issues you identified
-- Maintain the same app concept and functionality
-- Fix any bugs or broken features
-- Make the UI more intuitive and responsive
-- Ensure the code works in a sandboxed iframe
-
-Generate ONLY the HTML code. Do not include any markdown formatting, code blocks, or explanations. Start with <!DOCTYPE html> and end with </html>.`
+OUTPUT REQUIREMENTS:
+- Return ONLY complete, fixed HTML code
+- Single-file format: CSS in <style>, JavaScript in <script>
+- All features must work correctly
+- Maintain the same app concept and core functionality
+- Code must work in sandboxed iframe
+- Start with <!DOCTYPE html> and end with </html>
+- NO markdown, NO code blocks, NO explanations - only HTML`
 
   try {
     const response = await fetch(OPENROUTER_API_URL, {
