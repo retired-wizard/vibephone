@@ -94,6 +94,12 @@ body {
   50% { transform: translateX(250%); }
 }
 
+/* Spin animation for magic wand spinner */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* Device container - fullscreen on mobile */
 .device-container {
   min-height: 100vh;

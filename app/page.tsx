@@ -22,6 +22,12 @@ export default function Home() {
   const [loadingDescription, setLoadingDescription] = useState(false)
   const [isLocked, setIsLocked] = useState(true) // Always start locked on mobile
   const [isFixingApp, setIsFixingApp] = useState(false)
+  const [isEnhancingApp, setIsEnhancingApp] = useState(false)
+  const [showMagicDialog, setShowMagicDialog] = useState(false)
+  const [pendingAppHtml, setPendingAppHtml] = useState<string | null>(null)
+  const [showUpdateButton, setShowUpdateButton] = useState(false)
+  const [customCommand, setCustomCommand] = useState('')
+  const [showCustomInput, setShowCustomInput] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [sliderPosition, setSliderPosition] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
@@ -346,11 +352,13 @@ export default function Home() {
   }, [])
 
   const handleFrustrationButton = async () => {
-    if (!currentApp || !appHtml || isFixingApp) return
+    if (!currentApp || !appHtml || isFixingApp || isEnhancingApp) return
 
+    setShowMagicDialog(false)
     setIsFixingApp(true)
-    setLoading(true)
     setError(null)
+    setPendingAppHtml(null)
+    setShowUpdateButton(false)
     
     const getRandomMessage = () => {
       const messages = [
@@ -390,10 +398,9 @@ export default function Home() {
       }
 
       if (data.html) {
-        // Cache the fixed version
-        localStorage.setItem(`app_${currentApp}`, data.html)
-        setAppHtml(data.html)
-        setError(null)
+        // Store as pending update
+        setPendingAppHtml(data.html)
+        setShowUpdateButton(true)
       } else {
         throw new Error(data.error || 'No fixed HTML content generated')
       }
@@ -402,8 +409,97 @@ export default function Home() {
       setError(error instanceof Error ? error.message : 'Failed to fix app')
     } finally {
       clearInterval(messageInterval)
-      setLoading(false)
       setIsFixingApp(false)
+    }
+  }
+
+  const handleEnhanceApp = async () => {
+    if (!currentApp || !appHtml || isFixingApp || isEnhancingApp) return
+
+    setShowMagicDialog(false)
+    setIsEnhancingApp(true)
+    setError(null)
+    setPendingAppHtml(null)
+    setShowUpdateButton(false)
+
+    try {
+      const response = await fetch('/api/enhance-app', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          appName: currentApp,
+          currentHtml: appHtml 
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to enhance app')
+      }
+
+      if (data.html) {
+        setPendingAppHtml(data.html)
+        setShowUpdateButton(true)
+      } else {
+        throw new Error(data.error || 'No enhanced HTML content generated')
+      }
+    } catch (error) {
+      console.error('Error enhancing app:', error)
+      setError(error instanceof Error ? error.message : 'Failed to enhance app')
+    } finally {
+      setIsEnhancingApp(false)
+    }
+  }
+
+  const handleCustomCommand = async () => {
+    if (!currentApp || !appHtml || isFixingApp || isEnhancingApp || !customCommand.trim()) return
+
+    setShowMagicDialog(false)
+    setIsEnhancingApp(true)
+    setError(null)
+    setPendingAppHtml(null)
+    setShowUpdateButton(false)
+
+    try {
+      const response = await fetch('/api/custom-command', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          appName: currentApp,
+          currentHtml: appHtml,
+          command: customCommand.trim()
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to process command')
+      }
+
+      if (data.html) {
+        setPendingAppHtml(data.html)
+        setShowUpdateButton(true)
+        setCustomCommand('')
+      } else {
+        throw new Error(data.error || 'No modified HTML content generated')
+      }
+    } catch (error) {
+      console.error('Error processing custom command:', error)
+      setError(error instanceof Error ? error.message : 'Failed to process command')
+    } finally {
+      setIsEnhancingApp(false)
+      setShowCustomInput(false)
+    }
+  }
+
+  const handleUpdateApp = () => {
+    if (pendingAppHtml && currentApp) {
+      localStorage.setItem(`app_${currentApp}`, pendingAppHtml)
+      setAppHtml(pendingAppHtml)
+      setPendingAppHtml(null)
+      setShowUpdateButton(false)
     }
   }
 
@@ -567,6 +663,7 @@ export default function Home() {
     { name: 'Todo List', icon: '📋', gradient: 'linear-gradient(135deg, #D85A5A 0%, #C84A4A 100%)' },
     { name: 'Drawing', icon: '✏️', gradient: 'linear-gradient(135deg, #C8C8CC 0%, #B8B8BD 100%)' },
     { name: 'Coin Flip', icon: '🪙', gradient: 'linear-gradient(135deg, #8E6FB5 0%, #7E5FA5 100%)' },
+    { name: 'Snake', icon: '🐍', gradient: 'linear-gradient(135deg, #27AE60 0%, #229954 100%)' },
   ]
 
   return (
@@ -741,17 +838,53 @@ export default function Home() {
                 </div>
               ) : appHtml ? (
                 /* App iframe */
-                <iframe
-                  srcDoc={appHtml}
-                  sandbox="allow-scripts allow-same-origin"
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    border: 'none',
-                    background: '#000'
-                  }}
-                  title={currentApp}
-                />
+                <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                  <iframe
+                    srcDoc={appHtml}
+                    sandbox="allow-scripts allow-same-origin"
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      border: 'none',
+                      background: '#000'
+                    }}
+                    title={currentApp}
+                  />
+                  {/* Update Button - Shows when new version is ready */}
+                  {showUpdateButton && (
+                    <div style={{
+                      position: 'absolute',
+                      bottom: '20px',
+                      left: '50%',
+                      transform: 'translateX(-50%)',
+                      zIndex: 100
+                    }}>
+                      <button
+                        onClick={handleUpdateApp}
+                        style={{
+                          background: 'linear-gradient(135deg, #007AFF 0%, #0051D5 100%)',
+                          color: '#fff',
+                          border: 'none',
+                          padding: '12px 24px',
+                          borderRadius: '8px',
+                          fontSize: '16px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          boxShadow: '0 4px 12px rgba(0, 122, 255, 0.4)',
+                          transition: 'transform 0.1s ease'
+                        }}
+                        onMouseDown={(e) => {
+                          e.currentTarget.style.transform = 'translateX(-50%) scale(0.95)'
+                        }}
+                        onMouseUp={(e) => {
+                          e.currentTarget.style.transform = 'translateX(-50%) scale(1)'
+                        }}
+                      >
+                        Update Available ✨
+                      </button>
+                    </div>
+                  )}
+                </div>
               ) : null}
             </div>
           ) : (
@@ -959,33 +1092,34 @@ export default function Home() {
             }} />
           </div>
 
-          {/* Frustration Button - Only shows when app is loaded */}
+          {/* Magic Wand Button - Only shows when app is loaded */}
           {currentApp && appHtml && !loading && !error && (
             <div 
-              onClick={handleFrustrationButton}
+              onClick={() => setShowMagicDialog(true)}
               style={{
                 position: 'absolute',
                 right: '20px',
                 width: '56px',
                 height: '56px',
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A5A 50%, #DD4A4A 100%)',
+                background: 'linear-gradient(135deg, #9B59B6 0%, #8E44AD 50%, #7D3C98 100%)',
                 border: '2px solid rgba(0, 0, 0, 0.8)',
                 boxShadow: 
                   '0 2px 6px rgba(0, 0, 0, 0.6),' +
                   'inset 0 1px 2px rgba(255, 255, 255, 0.15),' +
                   'inset 0 -1px 2px rgba(0, 0, 0, 0.5)',
-                cursor: isFixingApp ? 'not-allowed' : 'pointer',
+                cursor: (isFixingApp || isEnhancingApp) ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 transition: 'transform 0.1s ease, box-shadow 0.1s ease, opacity 0.2s ease',
                 zIndex: 10,
-                opacity: isFixingApp ? 0.6 : 1,
-                fontSize: '32px'
+                opacity: (isFixingApp || isEnhancingApp) ? 0.6 : 1,
+                fontSize: '32px',
+                position: 'relative'
               }}
               onMouseDown={(e) => {
-                if (!isFixingApp) {
+                if (!isFixingApp && !isEnhancingApp) {
                   e.currentTarget.style.transform = 'scale(0.92)'
                   e.currentTarget.style.boxShadow = 
                     '0 1px 3px rgba(0, 0, 0, 0.6),' +
@@ -1008,7 +1142,7 @@ export default function Home() {
                   'inset 0 -1px 2px rgba(0, 0, 0, 0.5)'
               }}
               onTouchStart={(e) => {
-                if (!isFixingApp) {
+                if (!isFixingApp && !isEnhancingApp) {
                   e.currentTarget.style.transform = 'scale(0.92)'
                 }
               }}
@@ -1021,12 +1155,248 @@ export default function Home() {
                 WebkitUserSelect: 'none',
                 filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))'
               }}>
-                😤
+                ✨
               </span>
+              {/* Loading Spinner */}
+              {(isFixingApp || isEnhancingApp) && (
+                <div style={{
+                  position: 'absolute',
+                  top: '-4px',
+                  right: '-4px',
+                  bottom: '-4px',
+                  left: '-4px',
+                  borderRadius: '50%',
+                  border: '3px solid rgba(155, 89, 182, 0.3)',
+                  borderTopColor: '#9B59B6',
+                  animation: 'spin 1s linear infinite',
+                  pointerEvents: 'none'
+                }} />
+              )}
             </div>
           )}
         </div>
       </div>
+
+      {/* Magic Wand Dialog */}
+      {showMagicDialog && currentApp && appHtml && (
+        <div
+          onClick={() => setShowMagicDialog(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+            padding: '20px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#1a1a1a',
+              borderRadius: '16px',
+              padding: '24px',
+              width: '50%',
+              maxWidth: '400px',
+              minWidth: '300px',
+              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.7)',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px'
+            }}>
+              <h3 style={{
+                color: '#fff',
+                fontSize: '20px',
+                fontWeight: '600',
+                margin: 0
+              }}>
+                Magic Options
+              </h3>
+              <button
+                onClick={() => {
+                  setShowMagicDialog(false)
+                  setShowCustomInput(false)
+                  setCustomCommand('')
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#fff',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  padding: '0',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {!showCustomInput ? (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px'
+              }}>
+                {/* Frustration Button */}
+                <button
+                  onClick={handleFrustrationButton}
+                  disabled={isFixingApp || isEnhancingApp}
+                  style={{
+                    background: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A5A 50%, #DD4A4A 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '16px',
+                    borderRadius: '12px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    cursor: (isFixingApp || isEnhancingApp) ? 'not-allowed' : 'pointer',
+                    opacity: (isFixingApp || isEnhancingApp) ? 0.6 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    boxShadow: '0 2px 8px rgba(255, 107, 107, 0.3)'
+                  }}
+                >
+                  <span>😤</span>
+                  <span>Fix Issues</span>
+                </button>
+
+                {/* Magic Sparkle Button */}
+                <button
+                  onClick={handleEnhanceApp}
+                  disabled={isFixingApp || isEnhancingApp}
+                  style={{
+                    background: 'linear-gradient(135deg, #9B59B6 0%, #8E44AD 50%, #7D3C98 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '16px',
+                    borderRadius: '12px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    cursor: (isFixingApp || isEnhancingApp) ? 'not-allowed' : 'pointer',
+                    opacity: (isFixingApp || isEnhancingApp) ? 0.6 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    boxShadow: '0 2px 8px rgba(155, 89, 182, 0.3)'
+                  }}
+                >
+                  <span>✨</span>
+                  <span>Enhance App</span>
+                </button>
+
+                {/* Pen and Paper Button */}
+                <button
+                  onClick={() => setShowCustomInput(true)}
+                  disabled={isFixingApp || isEnhancingApp}
+                  style={{
+                    background: 'linear-gradient(135deg, #3498DB 0%, #2980B9 50%, #1F6391 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '16px',
+                    borderRadius: '12px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    cursor: (isFixingApp || isEnhancingApp) ? 'not-allowed' : 'pointer',
+                    opacity: (isFixingApp || isEnhancingApp) ? 0.6 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    boxShadow: '0 2px 8px rgba(52, 152, 219, 0.3)'
+                  }}
+                >
+                  <span>✏️</span>
+                  <span>Custom Command</span>
+                </button>
+              </div>
+            ) : (
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px'
+              }}>
+                <textarea
+                  value={customCommand}
+                  onChange={(e) => setCustomCommand(e.target.value)}
+                  placeholder="Type your command here... (e.g., 'Add a dark mode toggle', 'Make buttons bigger', etc.)"
+                  style={{
+                    background: '#000',
+                    color: '#fff',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '8px',
+                    padding: '12px',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    minHeight: '100px',
+                    resize: 'vertical',
+                    outline: 'none'
+                  }}
+                />
+                <div style={{
+                  display: 'flex',
+                  gap: '10px'
+                }}>
+                  <button
+                    onClick={() => {
+                      setShowCustomInput(false)
+                      setCustomCommand('')
+                    }}
+                    style={{
+                      flex: 1,
+                      background: '#444',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCustomCommand}
+                    disabled={!customCommand.trim() || isFixingApp || isEnhancingApp}
+                    style={{
+                      flex: 1,
+                      background: 'linear-gradient(135deg, #3498DB 0%, #2980B9 100%)',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      cursor: (!customCommand.trim() || isFixingApp || isEnhancingApp) ? 'not-allowed' : 'pointer',
+                      opacity: (!customCommand.trim() || isFixingApp || isEnhancingApp) ? 0.6 : 1
+                    }}
+                  >
+                    Send
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Code Popup Modal */}
       {showCodePopup && appHtml && (

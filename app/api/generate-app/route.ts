@@ -11,7 +11,8 @@ const APP_DESCRIPTIONS: Record<string, string> = {
   'Stopwatch': 'A stopwatch/timer with start, stop, and reset buttons. Shows elapsed time in MM:SS:MS format. Simple controls with a large time display.',
   'Todo List': 'A todo list app where users can add tasks, check them off as complete, and delete them. Simple list interface with add/remove functionality.',
   'Drawing': 'A simple drawing pad using HTML5 canvas. Allow drawing with mouse/touch, change colors, clear the canvas. Basic drawing tool with brush functionality.',
-  'Coin Flip': 'A coin flip simulator that randomly shows heads or tails when clicked. Fun animation and clear result display.'
+  'Coin Flip': 'A coin flip simulator that randomly shows heads or tails when clicked. Fun animation and clear result display.',
+  'Snake': 'A classic Snake game where the player controls a snake that grows as it eats food. Use arrow keys or touch swipes to control direction. Game over when snake hits walls or itself. Score increases with each food eaten.'
 }
 
 export async function POST(request: Request) {
@@ -32,6 +33,8 @@ export async function POST(request: Request) {
   
   const prompt = `You are creating a single-file HTML application for a mobile device. Generate a complete, self-contained HTML file for a "${appName}" app.
 
+Important: Create a SIMPLE, basic implementation of this app. Focus on core functionality first - make it work simply and well. Keep features minimal and straightforward. This is the foundation version that should be easy to use and understand.
+
 Requirements:
 - Single HTML file with all CSS in <style> tags and all JavaScript in <script> tags
 - Must work in a sandboxed iframe (no external resources, all code inline)
@@ -39,7 +42,8 @@ Requirements:
 - Design should be optimized for this ${appAspectRatio} aspect ratio - it will fill the entire viewport
 - Mobile-friendly responsive design that works within this ${appAspectRatio} aspect ratio
 - Modern, clean UI with dark theme
-- Fully functional - all features must work
+- Fully functional - all core features must work
+- Keep it simple - basic implementation, not overly complex
 - Include a postMessage notification when the app is ready: window.parent.postMessage({ type: 'app-ready', appName: '${appName}' }, '*')
 
 App Description: ${appDescription}
