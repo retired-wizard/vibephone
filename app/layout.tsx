@@ -9,6 +9,7 @@ export const metadata: Metadata = {
     initialScale: 1,
     maximumScale: 1,
     userScalable: false,
+    viewportFit: 'cover', // For iOS notch/edge-to-edge support
   },
   themeColor: '#000000',
   appleWebApp: {

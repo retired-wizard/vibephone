@@ -55,7 +55,7 @@ The defining feature of VibePhone is **Runtime App Generation**:
 *   **In-App Modification:** While inside a generated app, users can chat with Siri to request changes (e.g., "Make the buttons bigger" or "Add a high score counter"). Siri will hot-reload the app with the updated code in real-time.
 *   **Layered App Building:** Apps are generated in three phases:
     1.  **Phase 1 - Foundation (Immediate):** Generate a minimal, functional version with only basic core features. This version is delivered immediately so users can start using the app right away.
-    2.  **Phase 2 - Enhancement (Background):** While the user interacts with the basic version, the system generates an enhanced version in the background with advanced features, better UI polish, and additional functionality.
+    2.  **Phase 2 - Enhancement (Background):** While the user interacts with the basic version, the system generates an enhanced version in the background with advanced features, better UI polish, and additional functionality. The system also checks for and fixes bugs identified in the foundation version, improving stability and reliability.
     3.  **Update Notification:** When the enhanced version is ready, a subtle update notification appears at the bottom of the screen (below the home button area). The notification can be dismissed or tapped to upgrade.
     4.  **Seamless Upgrade:** When the user taps the update notification, the app seamlessly transitions from the basic version to the enhanced version without losing any user data or state (where applicable).
     5.  **User Control:** Users can continue using the basic version indefinitely if they prefer, or manually trigger an upgrade at any time.

@@ -19,6 +19,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null)
   const [showCodePopup, setShowCodePopup] = useState(false)
   const [isLocked, setIsLocked] = useState(true)
+  const [isFixingApp, setIsFixingApp] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [sliderPosition, setSliderPosition] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
@@ -260,22 +261,112 @@ export default function Home() {
   }
 
   const requestFullscreen = () => {
-    const element = document.documentElement
-    if ((element as any).requestFullscreen) {
-      (element as any).requestFullscreen().catch((err: any) => {
-        console.log('Fullscreen request failed:', err)
-      })
-    } else if ((element as any).webkitRequestFullscreen) {
-      (element as any).webkitRequestFullscreen()
-    } else if ((element as any).msRequestFullscreen) {
-      (element as any).msRequestFullscreen()
+    // Try multiple elements and methods for better mobile compatibility
+    const tryFullscreen = (element: HTMLElement) => {
+      // Standard fullscreen API
+      if (element.requestFullscreen) {
+        return element.requestFullscreen().catch((err: any) => {
+          console.log('Fullscreen request failed:', err)
+        })
+      }
+      // Webkit (Safari/iOS)
+      if ((element as any).webkitRequestFullscreen) {
+        return (element as any).webkitRequestFullscreen()
+      }
+      // Webkit Enter Fullscreen (iOS Safari alternative)
+      if ((element as any).webkitEnterFullscreen) {
+        return (element as any).webkitEnterFullscreen()
+      }
+      // MS (IE/Edge)
+      if ((element as any).msRequestFullscreen) {
+        return (element as any).msRequestFullscreen()
+      }
+      // Mozilla
+      if ((element as any).mozRequestFullScreen) {
+        return (element as any).mozRequestFullScreen()
+      }
+      return Promise.reject('Fullscreen not supported')
     }
+
+    // Try document.documentElement first, then document.body
+    tryFullscreen(document.documentElement).catch(() => {
+      tryFullscreen(document.body).catch((err) => {
+        console.log('Fullscreen not available:', err)
+      })
+    })
   }
 
   const handleUnlock = () => {
+    // Request fullscreen immediately during user interaction
+    // Use requestAnimationFrame to ensure it's within the interaction context
+    requestAnimationFrame(() => {
+      requestFullscreen()
+    })
+    
     setIsLocked(false)
     localStorage.setItem('vibephone_unlocked', 'true')
-    requestFullscreen()
+  }
+
+  const handleFrustrationButton = async () => {
+    if (!currentApp || !appHtml || isFixingApp) return
+
+    setIsFixingApp(true)
+    setLoading(true)
+    setError(null)
+    
+    const getRandomMessage = () => {
+      const messages = [
+        'Analyzing frustration points...',
+        'Finding what\'s annoying...',
+        'Detecting user pain points...',
+        'Investigating the issue...',
+        'Looking for bugs...',
+        'Fixing what\'s broken...',
+        'Improving user experience...',
+        'Debugging frustration sources...',
+        'Making it better...',
+        'Addressing your concerns...'
+      ]
+      return messages[Math.floor(Math.random() * messages.length)]
+    }
+    
+    setLoadingMessage(getRandomMessage())
+    const messageInterval = setInterval(() => {
+      setLoadingMessage(getRandomMessage())
+    }, 3500)
+
+    try {
+      const response = await fetch('/api/fix-app', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          appName: currentApp,
+          currentHtml: appHtml 
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to fix app')
+      }
+
+      if (data.html) {
+        // Cache the fixed version
+        localStorage.setItem(`app_${currentApp}`, data.html)
+        setAppHtml(data.html)
+        setError(null)
+      } else {
+        throw new Error(data.error || 'No fixed HTML content generated')
+      }
+    } catch (error) {
+      console.error('Error fixing app:', error)
+      setError(error instanceof Error ? error.message : 'Failed to fix app')
+    } finally {
+      clearInterval(messageInterval)
+      setLoading(false)
+      setIsFixingApp(false)
+    }
   }
 
   const handleSliderStart = (e: React.MouseEvent | React.TouchEvent) => {
@@ -302,9 +393,30 @@ export default function Home() {
 
     // If dragged far enough (80% of track), unlock
     if (newPosition > maxPosition * 0.8) {
-      handleUnlock()
       setIsDragging(false)
       setSliderPosition(0)
+      // Try to request fullscreen directly from the interaction event
+      const requestFullscreenNow = () => {
+        const tryElement = (el: HTMLElement) => {
+          if (el.requestFullscreen) return el.requestFullscreen()
+          if ((el as any).webkitRequestFullscreen) return (el as any).webkitRequestFullscreen()
+          if ((el as any).webkitEnterFullscreen) return (el as any).webkitEnterFullscreen()
+          if ((el as any).msRequestFullscreen) return (el as any).msRequestFullscreen()
+          if ((el as any).mozRequestFullScreen) return (el as any).mozRequestFullScreen()
+          return Promise.reject()
+        }
+        tryElement(document.documentElement).catch(() => {
+          tryElement(document.body).catch(() => {
+            // Fallback: try after a small delay
+            setTimeout(() => {
+              tryElement(document.documentElement).catch(() => {})
+            }, 100)
+          })
+        })
+      }
+      // Request immediately while we're still in the touch event
+      requestFullscreenNow()
+      handleUnlock()
     }
   }
 
@@ -330,9 +442,11 @@ export default function Home() {
       setSliderPosition(newPosition)
 
       if (newPosition > maxPosition * 0.8) {
-        handleUnlock()
         setIsDragging(false)
         setSliderPosition(0)
+        // Request fullscreen - call immediately for better compatibility
+        requestFullscreen()
+        handleUnlock()
       }
     }
 
@@ -354,9 +468,35 @@ export default function Home() {
       setSliderPosition(newPosition)
 
       if (newPosition > maxPosition * 0.8) {
-        handleUnlock()
         setIsDragging(false)
         setSliderPosition(0)
+        
+        // Request fullscreen immediately and synchronously from touch event
+        // Note: iOS Safari doesn't support Fullscreen API - fullscreen is only available
+        // when added to home screen as PWA. Android browsers support it.
+        const tryFullscreen = (element: HTMLElement) => {
+          try {
+            if (element.requestFullscreen) {
+              element.requestFullscreen().catch(() => {})
+            } else if ((element as any).webkitRequestFullscreen) {
+              (element as any).webkitRequestFullscreen()
+            } else if ((element as any).webkitEnterFullscreen) {
+              (element as any).webkitEnterFullscreen()
+            } else if ((element as any).msRequestFullscreen) {
+              (element as any).msRequestFullscreen()
+            } else if ((element as any).mozRequestFullScreen) {
+              (element as any).mozRequestFullScreen()
+            }
+          } catch (err) {
+            // Silently fail - some browsers don't support fullscreen
+          }
+        }
+        
+        // Try immediately (must be synchronous for mobile browsers)
+        tryFullscreen(document.documentElement)
+        tryFullscreen(document.body)
+        
+        handleUnlock()
       }
     }
 
@@ -697,7 +837,13 @@ export default function Home() {
         </div>
 
         {/* Home Button Container - Below screen area */}
-        <div className="home-button-container">
+        <div className="home-button-container" style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          padding: '12px 20px',
+          position: 'relative'
+        }}>
           {/* Home Button - Authentic iPhone 3G/3GS/4 style */}
           <div style={{
             position: 'relative',
@@ -774,6 +920,74 @@ export default function Home() {
               boxShadow: 'inset 0 1px 1px rgba(255, 255, 255, 0.1)'
             }} />
           </div>
+
+          {/* Frustration Button - Only shows when app is loaded */}
+          {currentApp && appHtml && !loading && !error && (
+            <div 
+              onClick={handleFrustrationButton}
+              style={{
+                position: 'absolute',
+                right: '20px',
+                position: 'relative',
+                width: '56px',
+                height: '56px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #FF6B6B 0%, #EE5A5A 50%, #DD4A4A 100%)',
+                border: '2px solid rgba(0, 0, 0, 0.8)',
+                boxShadow: 
+                  '0 2px 6px rgba(0, 0, 0, 0.6),' +
+                  'inset 0 1px 2px rgba(255, 255, 255, 0.15),' +
+                  'inset 0 -1px 2px rgba(0, 0, 0, 0.5)',
+                cursor: isFixingApp ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'transform 0.1s ease, box-shadow 0.1s ease, opacity 0.2s ease',
+                zIndex: 10,
+                opacity: isFixingApp ? 0.6 : 1,
+                fontSize: '32px'
+              }}
+              onMouseDown={(e) => {
+                if (!isFixingApp) {
+                  e.currentTarget.style.transform = 'scale(0.92)'
+                  e.currentTarget.style.boxShadow = 
+                    '0 1px 3px rgba(0, 0, 0, 0.6),' +
+                    'inset 0 1px 2px rgba(255, 255, 255, 0.1),' +
+                    'inset 0 -1px 2px rgba(0, 0, 0, 0.6)'
+                }
+              }}
+              onMouseUp={(e) => {
+                e.currentTarget.style.transform = 'scale(1)'
+                e.currentTarget.style.boxShadow = 
+                  '0 2px 6px rgba(0, 0, 0, 0.6),' +
+                  'inset 0 1px 2px rgba(255, 255, 255, 0.15),' +
+                  'inset 0 -1px 2px rgba(0, 0, 0, 0.5)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)'
+                e.currentTarget.style.boxShadow = 
+                  '0 2px 6px rgba(0, 0, 0, 0.6),' +
+                  'inset 0 1px 2px rgba(255, 255, 255, 0.15),' +
+                  'inset 0 -1px 2px rgba(0, 0, 0, 0.5)'
+              }}
+              onTouchStart={(e) => {
+                if (!isFixingApp) {
+                  e.currentTarget.style.transform = 'scale(0.92)'
+                }
+              }}
+              onTouchEnd={(e) => {
+                e.currentTarget.style.transform = 'scale(1)'
+              }}
+            >
+              <span style={{ 
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                filter: 'drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3))'
+              }}>
+                😤
+              </span>
+            </div>
+          )}
         </div>
       </div>
 
