@@ -53,3 +53,10 @@ The defining feature of VibePhone is **Runtime App Generation**:
 *(Note: DO NOT IMPLEMENT UNTIL EVERYTHING ELSE IS WORKING)*
 *   **"Siri" Chat Interface:** A dedicated chat tool on the Home Screen where users can describe *any* new app they want. Siri will then "code" it and add a new icon to the grid instantly.
 *   **In-App Modification:** While inside a generated app, users can chat with Siri to request changes (e.g., "Make the buttons bigger" or "Add a high score counter"). Siri will hot-reload the app with the updated code in real-time.
+*   **Layered App Building:** Apps are generated in three phases:
+    1.  **Phase 1 - Foundation (Immediate):** Generate a minimal, functional version with only basic core features. This version is delivered immediately so users can start using the app right away.
+    2.  **Phase 2 - Enhancement (Background):** While the user interacts with the basic version, the system generates an enhanced version in the background with advanced features, better UI polish, and additional functionality.
+    3.  **Update Notification:** When the enhanced version is ready, a subtle update notification appears at the bottom of the screen (below the home button area). The notification can be dismissed or tapped to upgrade.
+    4.  **Seamless Upgrade:** When the user taps the update notification, the app seamlessly transitions from the basic version to the enhanced version without losing any user data or state (where applicable).
+    5.  **User Control:** Users can continue using the basic version indefinitely if they prefer, or manually trigger an upgrade at any time.
+    6.  **Phase 3 - Adaptive Features (Usage-Based):** As the user interacts with the app, the system monitors usage patterns, interactions, and behavior. The app analyzes how the user is using it and identifies potential new features or improvements that would fit the user's workflow. When the system identifies a useful enhancement opportunity, it proactively asks the user (via an in-app prompt or notification) if they would like to add that feature. The user can accept or decline, and accepted features are generated and integrated seamlessly.
