@@ -839,7 +839,7 @@ export default function Home() {
                 </div>
               ) : appHtml ? (
                 /* App iframe */
-                <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+                <div style={{ position: 'relative', width: '100%', height: '100%', pointerEvents: 'auto' }}>
                   <iframe
                     srcDoc={appHtml}
                     sandbox="allow-scripts allow-same-origin"
@@ -847,18 +847,21 @@ export default function Home() {
                       width: '100%',
                       height: '100%',
                       border: 'none',
-                      background: '#000'
+                      background: '#000',
+                      pointerEvents: 'auto'
                     }}
                     title={currentApp}
                   />
-                  {/* Update Button - Shows when new version is ready */}
+                  {/* Update Button - Shows when new version is ready, positioned over iframe */}
                   {showUpdateButton && (
                     <div style={{
                       position: 'absolute',
                       bottom: '20px',
                       left: '50%',
                       transform: 'translateX(-50%)',
-                      zIndex: 100
+                      WebkitTransform: 'translateX(-50%)',
+                      zIndex: 10000,
+                      pointerEvents: 'auto'
                     }}>
                       <button
                         onClick={(e) => {
@@ -866,10 +869,21 @@ export default function Home() {
                           e.stopPropagation()
                           handleUpdateApp()
                         }}
-                        onTouchStart={(e) => e.stopPropagation()}
+                        onTouchStart={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          e.currentTarget.style.transform = 'scale(0.95)'
+                        }}
                         onTouchEnd={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
+                          e.currentTarget.style.transform = 'scale(1)'
+                          handleUpdateApp()
+                        }}
+                        onTouchCancel={(e) => {
+                          e.preventDefault()
+                          e.stopPropagation()
+                          e.currentTarget.style.transform = 'scale(1)'
                         }}
                         style={{
                           background: 'linear-gradient(135deg, #007AFF 0%, #0051D5 100%)',
@@ -882,7 +896,16 @@ export default function Home() {
                           cursor: 'pointer',
                           boxShadow: '0 4px 12px rgba(0, 122, 255, 0.4)',
                           transition: 'transform 0.1s ease',
-                          transform: 'scale(1)'
+                          transform: 'scale(1)',
+                          WebkitTapHighlightColor: 'transparent',
+                          touchAction: 'manipulation',
+                          WebkitTouchCallout: 'none',
+                          userSelect: 'none',
+                          WebkitUserSelect: 'none',
+                          pointerEvents: 'auto',
+                          position: 'relative',
+                          zIndex: 10001,
+                          minWidth: '160px'
                         }}
                         onMouseDown={(e) => {
                           e.currentTarget.style.transform = 'scale(0.95)'
@@ -898,6 +921,7 @@ export default function Home() {
                       </button>
                     </div>
                   )}
+                </div>
                 </div>
               ) : null}
             </div>
@@ -1029,6 +1053,29 @@ export default function Home() {
           padding: '12px 20px',
           position: 'relative'
         }}>
+          {/* Fullscreen Test Button - Bottom left for testing */}
+          {isMobile && (
+            <button
+              onClick={requestFullscreen}
+              style={{
+                position: 'absolute',
+                left: '20px',
+                background: 'linear-gradient(135deg, #34C759 0%, #28A745 100%)',
+                color: '#fff',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                boxShadow: '0 2px 6px rgba(52, 199, 89, 0.4)',
+                zIndex: 10
+              }}
+            >
+              Fullscreen
+            </button>
+          )}
+          
           {/* Home Button - Authentic iPhone 3G/3GS/4 style */}
           <div style={{
             position: 'relative',
@@ -1255,14 +1302,41 @@ export default function Home() {
               alignItems: 'center',
               marginBottom: '20px'
             }}>
-              <h3 style={{
-                color: '#fff',
-                fontSize: '20px',
-                fontWeight: '600',
-                margin: 0
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
               }}>
-                Magic Options
-              </h3>
+                <div style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0.1) 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '24px',
+                  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)'
+                }}>
+                  👋
+                </div>
+                <div>
+                  <div style={{
+                    color: '#fff',
+                    fontSize: '18px',
+                    fontWeight: '600',
+                    marginBottom: '4px'
+                  }}>
+                    Hey there! 👋
+                  </div>
+                  <div style={{
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    fontSize: '14px'
+                  }}>
+                    How can I help improve your app?
+                  </div>
+                </div>
+              </div>
               <button
                 onClick={() => {
                   setShowMagicDialog(false)
@@ -1280,7 +1354,8 @@ export default function Home() {
                   height: '32px',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  opacity: 0.7
                 }}
               >
                 ×
@@ -1311,11 +1386,20 @@ export default function Home() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '10px',
-                    boxShadow: '0 2px 8px rgba(255, 107, 107, 0.3)'
+                    boxShadow: '0 2px 8px rgba(255, 107, 107, 0.3)',
+                    transition: 'transform 0.1s ease'
+                  }}
+                  onMouseDown={(e) => {
+                    if (!isFixingApp && !isEnhancingApp) {
+                      e.currentTarget.style.transform = 'scale(0.97)'
+                    }
+                  }}
+                  onMouseUp={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)'
                   }}
                 >
                   <span>😤</span>
-                  <span>Fix Issues</span>
+                  <span>Fix what's broken</span>
                 </button>
 
                 {/* Magic Sparkle Button */}
@@ -1336,11 +1420,20 @@ export default function Home() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '10px',
-                    boxShadow: '0 2px 8px rgba(155, 89, 182, 0.3)'
+                    boxShadow: '0 2px 8px rgba(155, 89, 182, 0.3)',
+                    transition: 'transform 0.1s ease'
+                  }}
+                  onMouseDown={(e) => {
+                    if (!isFixingApp && !isEnhancingApp) {
+                      e.currentTarget.style.transform = 'scale(0.97)'
+                    }
+                  }}
+                  onMouseUp={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)'
                   }}
                 >
                   <span>✨</span>
-                  <span>Enhance App</span>
+                  <span>Make it better</span>
                 </button>
 
                 {/* Pen and Paper Button */}
@@ -1361,11 +1454,20 @@ export default function Home() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '10px',
-                    boxShadow: '0 2px 8px rgba(52, 152, 219, 0.3)'
+                    boxShadow: '0 2px 8px rgba(52, 152, 219, 0.3)',
+                    transition: 'transform 0.1s ease'
+                  }}
+                  onMouseDown={(e) => {
+                    if (!isFixingApp && !isEnhancingApp) {
+                      e.currentTarget.style.transform = 'scale(0.97)'
+                    }
+                  }}
+                  onMouseUp={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)'
                   }}
                 >
                   <span>✏️</span>
-                  <span>Custom Command</span>
+                  <span>Tell me what to do</span>
                 </button>
               </div>
             ) : (
@@ -1374,6 +1476,14 @@ export default function Home() {
                 flexDirection: 'column',
                 gap: '12px'
               }}>
+                <div style={{
+                  color: '#fff',
+                  fontSize: '16px',
+                  marginBottom: '8px',
+                  fontWeight: '500'
+                }}>
+                  What would you like me to do? 💬
+                </div>
                 <textarea
                   value={customCommand}
                   onChange={(e) => setCustomCommand(e.target.value)}
@@ -1382,7 +1492,7 @@ export default function Home() {
                   onTouchMove={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
                   onFocus={(e) => e.stopPropagation()}
-                  placeholder="Type your command here... (e.g., 'Add a dark mode toggle', 'Make buttons bigger', etc.)"
+                  placeholder="Just tell me what you want... (e.g., 'Add a dark mode toggle', 'Make buttons bigger', 'Change colors to blue', etc.)"
                   style={{
                     background: '#000',
                     color: '#fff',
@@ -1418,13 +1528,13 @@ export default function Home() {
                       cursor: 'pointer'
                     }}
                   >
-                    Cancel
+                    Never mind
                   </button>
                   <button
                     onClick={handleCustomCommand}
                     disabled={!customCommand.trim() || isFixingApp || isEnhancingApp}
                     style={{
-                      flex: 1,
+                      flex: 2,
                       background: 'linear-gradient(135deg, #3498DB 0%, #2980B9 100%)',
                       color: '#fff',
                       border: 'none',
@@ -1436,7 +1546,7 @@ export default function Home() {
                       opacity: (!customCommand.trim() || isFixingApp || isEnhancingApp) ? 0.6 : 1
                     }}
                   >
-                    Send
+                    Send it 🚀
                   </button>
                 </div>
               </div>
