@@ -52,7 +52,7 @@ Generate ONLY the HTML code. Do not include any markdown formatting, code blocks
         'X-Title': 'VibePhone'
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash', // Using Gemini 3 Flash
+        model: 'google/gemini-3-flash-preview', // Using Gemini 3 Flash Preview
         messages: [
           {
             role: 'system',
