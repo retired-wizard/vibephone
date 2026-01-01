@@ -18,10 +18,16 @@ export default function Home() {
   const [loadingMessage, setLoadingMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [showCodePopup, setShowCodePopup] = useState(false)
+  const [isLocked, setIsLocked] = useState(true)
+  const [isMobile, setIsMobile] = useState(false)
+  const [sliderPosition, setSliderPosition] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
   const screenAreaRef = useRef<HTMLDivElement>(null)
   const homeButtonPressTimerRef = useRef<NodeJS.Timeout | null>(null)
   const isHomeButtonPressedRef = useRef(false)
   const longPressOccurredRef = useRef(false)
+  const sliderRef = useRef<HTMLDivElement>(null)
+  const sliderTrackRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     // Clear all cached apps when the site loads/reloads
@@ -31,6 +37,27 @@ export default function Home() {
         localStorage.removeItem(key)
       }
     })
+
+    // Detect if mobile device
+    const checkMobile = () => {
+      const userAgent = navigator.userAgent || navigator.vendor || (window as any).opera
+      const isMobileDevice = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent.toLowerCase()) ||
+        (window.innerWidth <= 768 && 'ontouchstart' in window)
+      setIsMobile(isMobileDevice)
+
+      // Check if already unlocked (only for mobile)
+      if (isMobileDevice) {
+        const unlocked = localStorage.getItem('vibephone_unlocked')
+        setIsLocked(unlocked !== 'true')
+      } else {
+        // Desktop is never locked
+        setIsLocked(false)
+      }
+    }
+
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
   useEffect(() => {
@@ -232,6 +259,127 @@ export default function Home() {
     }
   }
 
+  const requestFullscreen = () => {
+    const element = document.documentElement
+    if ((element as any).requestFullscreen) {
+      (element as any).requestFullscreen().catch((err: any) => {
+        console.log('Fullscreen request failed:', err)
+      })
+    } else if ((element as any).webkitRequestFullscreen) {
+      (element as any).webkitRequestFullscreen()
+    } else if ((element as any).msRequestFullscreen) {
+      (element as any).msRequestFullscreen()
+    }
+  }
+
+  const handleUnlock = () => {
+    setIsLocked(false)
+    localStorage.setItem('vibephone_unlocked', 'true')
+    requestFullscreen()
+  }
+
+  const handleSliderStart = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isLocked) return
+    setIsDragging(true)
+    e.preventDefault()
+    handleSliderMove(e)
+  }
+
+  const handleSliderMove = (e: React.MouseEvent | React.TouchEvent) => {
+    if (!isLocked) return
+    
+    const track = sliderTrackRef.current
+    if (!track) return
+
+    const rect = track.getBoundingClientRect()
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    let newPosition = clientX - rect.left
+    
+    // Constrain to track bounds (accounting for button width)
+    const maxPosition = rect.width - 60
+    newPosition = Math.max(0, Math.min(newPosition, maxPosition))
+    setSliderPosition(newPosition)
+
+    // If dragged far enough (80% of track), unlock
+    if (newPosition > maxPosition * 0.8) {
+      handleUnlock()
+      setIsDragging(false)
+      setSliderPosition(0)
+    }
+  }
+
+  const handleSliderEnd = () => {
+    if (isDragging) {
+      setIsDragging(false)
+      // Animate back to start if not unlocked
+      setSliderPosition(0)
+    }
+  }
+
+  useEffect(() => {
+    if (!isDragging || !isLocked) return
+
+    const handleMouseMove = (e: MouseEvent) => {
+      e.preventDefault()
+      const track = sliderTrackRef.current
+      if (!track) return
+      const rect = track.getBoundingClientRect()
+      let newPosition = e.clientX - rect.left
+      const maxPosition = rect.width - 60
+      newPosition = Math.max(0, Math.min(newPosition, maxPosition))
+      setSliderPosition(newPosition)
+
+      if (newPosition > maxPosition * 0.8) {
+        handleUnlock()
+        setIsDragging(false)
+        setSliderPosition(0)
+      }
+    }
+
+    const handleMouseUp = () => {
+      if (isLocked) {
+        setIsDragging(false)
+        setSliderPosition(0)
+      }
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      e.preventDefault()
+      const track = sliderTrackRef.current
+      if (!track) return
+      const rect = track.getBoundingClientRect()
+      let newPosition = e.touches[0].clientX - rect.left
+      const maxPosition = rect.width - 60
+      newPosition = Math.max(0, Math.min(newPosition, maxPosition))
+      setSliderPosition(newPosition)
+
+      if (newPosition > maxPosition * 0.8) {
+        handleUnlock()
+        setIsDragging(false)
+        setSliderPosition(0)
+      }
+    }
+
+    const handleTouchEnd = () => {
+      if (isLocked) {
+        setIsDragging(false)
+        setSliderPosition(0)
+      }
+    }
+
+    window.addEventListener('mousemove', handleMouseMove, { passive: false })
+    window.addEventListener('mouseup', handleMouseUp)
+    window.addEventListener('touchmove', handleTouchMove, { passive: false })
+    window.addEventListener('touchend', handleTouchEnd)
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove)
+      window.removeEventListener('mouseup', handleMouseUp)
+      window.removeEventListener('touchmove', handleTouchMove)
+      window.removeEventListener('touchend', handleTouchEnd)
+    }
+  }, [isDragging, isLocked])
+
   // Apps that are easy for AI to generate - simple, single-purpose utilities
   const apps = [
     { name: 'Calculator', icon: '🔢', gradient: 'linear-gradient(135deg, #8E8E93 0%, #7A7A80 100%)' },
@@ -244,7 +392,51 @@ export default function Home() {
   ]
 
   return (
-    <div className="device-container">
+    <>
+      {/* Lock Screen - Only on mobile */}
+      {isMobile && isLocked && (
+        <div className="lock-screen">
+          <div className="lock-screen-background" />
+          <div className="lock-screen-content">
+            {/* Time Display */}
+            <div className="lock-screen-time">{time}</div>
+            {/* Date Display */}
+            <div className="lock-screen-date">
+              {new Date().toLocaleDateString('en-US', { 
+                weekday: 'long', 
+                month: 'long', 
+                day: 'numeric' 
+              })}
+            </div>
+            {/* Unlock Slider */}
+            <div className="lock-screen-slider-container">
+              <div
+                ref={sliderTrackRef}
+                className="lock-screen-slider-track"
+                onMouseDown={handleSliderStart}
+                onTouchStart={handleSliderStart}
+              >
+                <div
+                  ref={sliderRef}
+                  className="lock-screen-slider-button"
+                  style={{
+                    transform: `translateX(${sliderPosition}px)`,
+                    transition: isDragging ? 'none' : 'transform 0.3s ease-out'
+                  }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M8.59 16.59L13.17 12L8.59 7.41L10 6L16 12L10 18L8.59 16.59Z" fill="rgba(0, 0, 0, 0.6)"/>
+                  </svg>
+                </div>
+                <span className="lock-screen-slider-text">slide to unlock</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Device - Hidden when locked on mobile */}
+      <div className="device-container" style={{ display: isMobile && isLocked ? 'none' : 'flex' }}>
       {/* Device Bezel - 9:16 aspect ratio, fullscreen on mobile */}
       <div className="device-bezel">
         {/* Screen Area - 9:16 aspect ratio */}
@@ -670,5 +862,6 @@ export default function Home() {
         </div>
       )}
     </div>
+    </>
   )
 }
