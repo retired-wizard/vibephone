@@ -6,10 +6,10 @@ const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 // Map app names to their descriptions for the prompt
 const APP_DESCRIPTIONS: Record<string, string> = {
   'Calculator': 'A fully functional calculator with basic arithmetic operations (+, -, ×, ÷), clear functions, and a numeric display. Should have a modern, dark theme with a grid of buttons.',
-  'Notes': 'A simple note-taking app with a text area for writing notes. Should allow typing, editing, and saving notes. Clean, minimal design with focus on text input.',
-  'Clock': 'A digital clock that displays the current time, updating every second. Can show time in 12-hour or 24-hour format. Simple, readable display.',
+  'Notes': 'A simple note-taking app with a text area for writing and editing notes. Clean, minimal design with focus on text input.',
+  'Clock': 'A digital clock that displays the current time, updating every second. Simple, readable display.',
   'Stopwatch': 'A stopwatch/timer with start, stop, and reset buttons. Shows elapsed time in MM:SS:MS format. Simple controls with a large time display.',
-  'Todo List': 'A todo list app where users can add tasks, check them off as complete, and delete them. Simple list interface with add/remove functionality.',
+  'Todo List': 'A todo list app where users can add tasks and check them off as complete. Simple list interface with add functionality.',
   'Drawing': 'A simple drawing pad using HTML5 canvas. Allow drawing with mouse/touch, change colors, clear the canvas. Basic drawing tool with brush functionality.',
   'Coin Flip': 'A coin flip simulator that randomly shows heads or tails when clicked. Fun animation and clear result display.',
   'Snake': 'A classic Snake game where the player controls a snake that grows as it eats food. Use arrow keys or touch swipes to control direction. Game over when snake hits walls or itself. Score increases with each food eaten.'
@@ -31,24 +31,20 @@ export async function POST(request: Request) {
 
   const appDescription = APP_DESCRIPTIONS[appName] || `A simple ${appName} app`
   
-  const prompt = `You are creating a single-file HTML application for a mobile device. Generate a complete, self-contained HTML file for a "${appName}" app.
+  const prompt = `Create a single-file HTML app for "${appName}" - the MOST FOUNDATIONAL version that works.
 
-Important: Create a SIMPLE, basic implementation of this app. Focus on core functionality first - make it work simply and well. Keep features minimal and straightforward. This is the foundation version that should be easy to use and understand.
+Core Rule: Build ONLY the essential, foundational features needed for this app to function. Nothing extra. This is the minimal core - simple but solid, easily expandable later.
 
-Requirements:
-- Single HTML file with all CSS in <style> tags and all JavaScript in <script> tags
-- Must work in a sandboxed iframe (no external resources, all code inline)
-- The app will be displayed in a container with an exact aspect ratio of ${appAspectRatio} (${appAspectRatio.split(':')[0]} units wide by ${appAspectRatio.split(':')[1]} units tall)
-- Design should be optimized for this ${appAspectRatio} aspect ratio - it will fill the entire viewport
-- Mobile-friendly responsive design that works within this ${appAspectRatio} aspect ratio
-- Modern, clean UI with dark theme
-- Fully functional - all core features must work
-- Keep it simple - basic implementation, not overly complex
-- Include a postMessage notification when the app is ready: window.parent.postMessage({ type: 'app-ready', appName: '${appName}' }, '*')
+Technical:
+- Single HTML file: CSS in <style>, JavaScript in <script>, all inline
+- Works in sandboxed iframe (no external resources)
+- Aspect ratio: ${appAspectRatio} (fills entire viewport)
+- Dark theme, mobile-friendly
+- Include: window.parent.postMessage({ type: 'app-ready', appName: '${appName}' }, '*') when ready
 
-App Description: ${appDescription}
+App: ${appDescription}
 
-Generate ONLY the HTML code. Do not include any markdown formatting, code blocks, or explanations. Start with <!DOCTYPE html> and end with </html>.`
+Return ONLY HTML. Start with <!DOCTYPE html> and end with </html>. No markdown or explanations.`
 
   try {
     const response = await fetch(OPENROUTER_API_URL, {
