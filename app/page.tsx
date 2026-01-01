@@ -39,6 +39,15 @@ export default function Home() {
   const sliderRef = useRef<HTMLDivElement>(null)
   const sliderTrackRef = useRef<HTMLDivElement>(null)
   const deviceContainerRef = useRef<HTMLDivElement>(null)
+  // Generate version once per build - uses build timestamp or current time as fallback
+  const [buildVersion] = useState(() => {
+    if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_BUILD_VERSION) {
+      return process.env.NEXT_PUBLIC_BUILD_VERSION
+    }
+    // Generate a version based on timestamp (will be consistent per deployment)
+    const timestamp = Date.now()
+    return `v${timestamp.toString(36).slice(-6)}`
+  })
 
   useEffect(() => {
     // Clear all cached apps when the site loads/reloads
@@ -1145,7 +1154,7 @@ export default function Home() {
                 userSelect: 'none',
                 WebkitUserSelect: 'none'
               }}>
-                v1.0.0
+                {buildVersion}
               </div>
             </div>
           </div>
@@ -1166,12 +1175,12 @@ export default function Home() {
             width: '56px',
             height: '56px',
             borderRadius: '50%',
-            background: 'linear-gradient(135deg, #ffffff 0%, #f5f5f5 50%, #e0e0e0 100%)',
-            border: '2px solid rgba(200, 200, 200, 0.8)',
+            background: 'linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 50%, #2a2a2a 100%)',
+            border: '2px solid rgba(60, 60, 60, 0.8)',
             boxShadow: 
               '0 2px 6px rgba(0, 0, 0, 0.3),' +
-              'inset 0 1px 2px rgba(255, 255, 255, 0.8),' +
-              'inset 0 -1px 2px rgba(0, 0, 0, 0.2)',
+              'inset 0 1px 2px rgba(255, 255, 255, 0.05),' +
+              'inset 0 -1px 2px rgba(0, 0, 0, 0.5)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -1182,16 +1191,16 @@ export default function Home() {
           onMouseDown={(e) => {
             e.currentTarget.style.transform = 'scale(0.92)'
             e.currentTarget.style.boxShadow = 
-              '0 1px 3px rgba(0, 0, 0, 0.3),' +
-              'inset 0 1px 2px rgba(255, 255, 255, 0.6),' +
-              'inset 0 -1px 2px rgba(0, 0, 0, 0.3)'
+              '0 1px 3px rgba(0, 0, 0, 0.5),' +
+              'inset 0 1px 2px rgba(255, 255, 255, 0.03),' +
+              'inset 0 -1px 2px rgba(0, 0, 0, 0.6)'
             handleHomeButtonPress()
           }}
           onMouseUp={(e) => {
             e.currentTarget.style.transform = 'scale(1)'
             e.currentTarget.style.boxShadow = 
-              '0 2px 6px rgba(0, 0, 0, 0.6),' +
-              'inset 0 1px 2px rgba(255, 255, 255, 0.08),' +
+              '0 2px 6px rgba(0, 0, 0, 0.3),' +
+              'inset 0 1px 2px rgba(255, 255, 255, 0.05),' +
               'inset 0 -1px 2px rgba(0, 0, 0, 0.5)'
             const wasLongPress = longPressOccurredRef.current
             handleHomeButtonRelease()
@@ -1203,8 +1212,8 @@ export default function Home() {
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)'
             e.currentTarget.style.boxShadow = 
-              '0 2px 6px rgba(0, 0, 0, 0.6),' +
-              'inset 0 1px 2px rgba(255, 255, 255, 0.08),' +
+              '0 2px 6px rgba(0, 0, 0, 0.3),' +
+              'inset 0 1px 2px rgba(255, 255, 255, 0.05),' +
               'inset 0 -1px 2px rgba(0, 0, 0, 0.5)'
             handleHomeButtonRelease()
           }}
@@ -1231,9 +1240,9 @@ export default function Home() {
               width: '40px',
               height: '40px',
               borderRadius: '50%',
-              border: '1px solid rgba(150, 150, 150, 0.4)',
-              background: 'radial-gradient(circle at 35% 35%, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.02) 40%, transparent 70%)',
-              boxShadow: 'inset 0 1px 1px rgba(255, 255, 255, 0.6)'
+              border: '1px solid rgba(60, 60, 60, 0.6)',
+              background: 'radial-gradient(circle at 35% 35%, rgba(255,255,255,0.02) 0%, rgba(255,255,255,0.01) 40%, transparent 70%)',
+              boxShadow: 'inset 0 1px 1px rgba(0, 0, 0, 0.3)'
             }} />
           </div>
 
@@ -1448,7 +1457,7 @@ export default function Home() {
                   }}
                 >
                   <span>😤</span>
-                  <span>Fix what&apos;s broken</span>
+                  <span>Fix</span>
                 </button>
 
                 {/* Magic Sparkle Button */}
@@ -1482,7 +1491,7 @@ export default function Home() {
                   }}
                 >
                   <span>✨</span>
-                  <span>Make it better</span>
+                  <span>Enhance</span>
                 </button>
 
                 {/* Pen and Paper Button */}
@@ -1516,7 +1525,7 @@ export default function Home() {
                   }}
                 >
                   <span>✏️</span>
-                  <span>Tell me what to do</span>
+                  <span>Customize</span>
                 </button>
               </div>
             ) : (
