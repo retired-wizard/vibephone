@@ -39,6 +39,7 @@ export default function Home() {
   const homeButtonPressTimerRef = useRef<NodeJS.Timeout | null>(null)
   const isHomeButtonPressedRef = useRef(false)
   const longPressOccurredRef = useRef(false)
+  const popupShownDuringTouchRef = useRef(false)
   const sliderRef = useRef<HTMLDivElement>(null)
   const sliderTrackRef = useRef<HTMLDivElement>(null)
   const deviceContainerRef = useRef<HTMLDivElement>(null)
@@ -566,6 +567,7 @@ export default function Home() {
 
   const handleHomeButtonPress = () => {
     longPressOccurredRef.current = false
+    popupShownDuringTouchRef.current = false
     // Only work if we're in an app
     if (!currentApp || !appHtml || loading || error) {
       return
@@ -575,6 +577,7 @@ export default function Home() {
     homeButtonPressTimerRef.current = setTimeout(() => {
       if (isHomeButtonPressedRef.current) {
         longPressOccurredRef.current = true
+        popupShownDuringTouchRef.current = true
         setShowCodePopup(true)
         // Load description from localStorage when popup opens (no API call)
         if (currentApp) {
@@ -1479,6 +1482,24 @@ export default function Home() {
                     }}>
                       {app.icon}
                     </span>
+                    {/* Update Badge - Blue circle in top-right corner */}
+                    {pendingAppName === app.name && pendingAppHtml && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: '-2px',
+                          right: '-2px',
+                          width: '12px',
+                          height: '12px',
+                          borderRadius: '50%',
+                          background: '#007AFF',
+                          border: '2px solid rgba(255, 255, 255, 0.9)',
+                          boxShadow: '0 1px 2px rgba(0, 0, 0, 0.3)',
+                          zIndex: 10,
+                          pointerEvents: 'none'
+                        }}
+                      />
+                    )}
                   </div>
                   
                   {/* App Label - Authentic iOS typography */}
@@ -1685,6 +1706,11 @@ export default function Home() {
               'inset 0 -1px 2px rgba(0, 0, 0, 0.5)'
             handleHomeButtonRelease()
           }}
+          onContextMenu={(e) => {
+            // Prevent browser's default context menu on long press
+            e.preventDefault()
+            e.stopPropagation()
+          }}
           onTouchStart={(e) => {
             e.preventDefault() // Prevent click event and scrolling
             e.stopPropagation()
@@ -1696,13 +1722,34 @@ export default function Home() {
             e.stopPropagation()
             e.currentTarget.style.transform = 'scale(1)'
             const wasLongPress = longPressOccurredRef.current
+            const popupShown = popupShownDuringTouchRef.current
+            const timerWasRunning = homeButtonPressTimerRef.current !== null
             handleHomeButtonRelease()
-            // Only go home if it wasn't a long press (long press already showed popup)
-            if (!wasLongPress) {
-              handleHomeClick()
+            
+            // If popup was shown during this touch (long press succeeded), don't go home
+            if (popupShown || wasLongPress) {
+              longPressOccurredRef.current = false
+              popupShownDuringTouchRef.current = false
+              return
             }
-            // Reset long press flag
-            longPressOccurredRef.current = false
+            
+            // If timer was still running, it was a short press - go home after a small delay
+            // This gives the timer a chance to fire if it was very close to 1 second
+            if (timerWasRunning) {
+              setTimeout(() => {
+                // Only go home if popup didn't show (timer didn't fire in time)
+                if (!popupShownDuringTouchRef.current && !longPressOccurredRef.current) {
+                  handleHomeClick()
+                }
+                longPressOccurredRef.current = false
+                popupShownDuringTouchRef.current = false
+              }, 100)
+            } else {
+              // Timer already completed or was cleared - go home immediately
+              handleHomeClick()
+              longPressOccurredRef.current = false
+              popupShownDuringTouchRef.current = false
+            }
           }}
           onTouchCancel={(e) => {
             e.preventDefault()
@@ -1710,6 +1757,7 @@ export default function Home() {
             e.currentTarget.style.transform = 'scale(1)'
             handleHomeButtonRelease()
             longPressOccurredRef.current = false
+            popupShownDuringTouchRef.current = false
           }}
           onClick={(e) => {
             // Prevent click from firing if we already handled it via touch
