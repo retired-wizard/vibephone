@@ -43,6 +43,7 @@ export default function Home() {
   const sliderTrackRef = useRef<HTMLDivElement>(null)
   const deviceContainerRef = useRef<HTMLDivElement>(null)
   const fullscreenAttemptRef = useRef<number>(0)
+  const shouldUnlockRef = useRef(false)
   // Generate version once per build - uses build timestamp or current time as fallback
   const [buildVersion] = useState(() => {
     if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_BUILD_VERSION) {
@@ -54,13 +55,20 @@ export default function Home() {
   })
 
   useEffect(() => {
-    // Clear all cached apps when the site loads/reloads
-    const keys = Object.keys(localStorage)
-    keys.forEach(key => {
-      if (key.startsWith('app_')) {
-        localStorage.removeItem(key)
-      }
-    })
+    // Check if build version changed - if so, clear all cached apps
+    const storedVersion = localStorage.getItem('app_version')
+    if (storedVersion !== buildVersion) {
+      // Version changed, clear all cached apps
+      const keys = Object.keys(localStorage)
+      keys.forEach(key => {
+        if (key.startsWith('app_')) {
+          localStorage.removeItem(key)
+        }
+      })
+      // Store new version
+      localStorage.setItem('app_version', buildVersion)
+    }
+    // If version matches, apps persist - no clearing needed
 
     // Detect if mobile device (only on mount)
     const checkMobileInitial = () => {
@@ -416,6 +424,146 @@ export default function Home() {
     // Note: Don't clear pending updates or update states - they persist across navigation
   }
 
+  const handleResetApp = async () => {
+    if (!currentApp) return
+    
+    const appToReset = currentApp
+    
+    // Close code popup
+    setShowCodePopup(false)
+    setCodeDescription(null)
+    
+    // Delete app from localStorage
+    localStorage.removeItem(`app_${appToReset}`)
+    localStorage.removeItem(`app_${appToReset}_desc`)
+    localStorage.removeItem(`app_${appToReset}_desc_pending`)
+    
+    // Clear app state
+    setAppHtml(null)
+    setAppDescription(null)
+    setPendingAppHtml(null)
+    setPendingAppName(null)
+    setShowUpdateButton(false)
+    setError(null)
+    
+    // Start loading screen and regenerate app from scratch
+    setLoading(true)
+    setCurrentApp(appToReset)
+    setLoadingAppName(appToReset)
+    
+    // Randomly select loading messages
+    const getRandomMessage = () => {
+      const randomIndex = Math.floor(Math.random() * loadingMessages.length)
+      return loadingMessages[randomIndex]
+    }
+    
+    setLoadingMessage(getRandomMessage())
+    const messageInterval = setInterval(() => {
+      setLoadingMessage(getRandomMessage())
+    }, 3500) // 3.5 seconds between messages
+
+    try {
+      // Calculate actual aspect ratio of screen area after it renders
+      await new Promise(resolve => requestAnimationFrame(resolve))
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      let aspectRatio = '9:16' // Default fallback
+      const screenElement = document.querySelector('.screen-area') as HTMLElement
+      if (screenElement) {
+        const rect = screenElement.getBoundingClientRect()
+        if (rect.width > 0 && rect.height > 0) {
+          const width = rect.width
+          const height = rect.height
+          const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b)
+          const divisor = gcd(Math.round(width * 1000), Math.round(height * 1000))
+          const aspectWidth = Math.round((width * 1000) / divisor)
+          const aspectHeight = Math.round((height * 1000) / divisor)
+          aspectRatio = `${aspectWidth}:${aspectHeight}`
+        }
+      }
+      
+      // Call API to generate app with timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 second timeout
+      
+      const response = await fetch('/api/generate-app', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appName: appToReset, aspectRatio }),
+        signal: controller.signal
+      })
+      
+      clearTimeout(timeoutId)
+      
+      let data
+      try {
+        data = await response.json()
+      } catch (parseError) {
+        throw new Error('Invalid response from server')
+      }
+      
+      if (!response.ok) {
+        throw new Error(data.error || `Failed to generate ${appToReset}`)
+      }
+      
+      if (data.html) {
+        // Basic validation - check if it looks like HTML
+        if (!data.html.includes('<html') && !data.html.includes('<!DOCTYPE')) {
+          throw new Error('Generated content is not valid HTML')
+        }
+        
+        // Cache HTML and description
+        localStorage.setItem(`app_${appToReset}`, data.html)
+        if (data.description) {
+          localStorage.setItem(`app_${appToReset}_desc`, data.description)
+        }
+        
+        // Only update UI if we're still loading this specific app
+        setLoadingAppName((prevLoadingApp) => {
+          setCurrentApp((prevApp) => {
+            if (prevLoadingApp === appToReset && prevApp === appToReset) {
+              setAppHtml(data.html)
+              if (data.description) {
+                setAppDescription(data.description)
+              }
+              setError(null)
+              setLoading(false)
+              return prevApp
+            }
+            return prevApp
+          })
+          return prevLoadingApp === appToReset ? null : prevLoadingApp
+        })
+      } else {
+        throw new Error(data.error || 'No HTML content generated')
+      }
+    } catch (error) {
+      console.error('Error generating app:', error)
+      
+      setLoadingAppName((prevLoadingApp) => {
+        setCurrentApp((prevApp) => {
+          if (prevLoadingApp === appToReset && prevApp === appToReset) {
+            let errorMessage = 'Failed to generate app'
+            if (error instanceof Error) {
+              if (error.name === 'AbortError') {
+                errorMessage = 'Request timed out. Please try again.'
+              } else {
+                errorMessage = error.message
+              }
+            }
+            
+            setError(errorMessage)
+            setLoading(false)
+          }
+          return prevApp
+        })
+        return prevLoadingApp === appToReset ? null : prevLoadingApp
+      })
+    } finally {
+      clearInterval(messageInterval)
+    }
+  }
+
   const handleHomeButtonPress = () => {
     longPressOccurredRef.current = false
     // Only work if we're in an app
@@ -433,7 +581,7 @@ export default function Home() {
           loadAppDescription(currentApp)
         }
       }
-    }, 2000) // 2 seconds
+    }, 1000) // 1 second
   }
 
   const handleHomeButtonRelease = () => {
@@ -911,43 +1059,51 @@ export default function Home() {
       newPosition = Math.max(0, Math.min(newPosition, maxPosition))
       setSliderPosition(newPosition)
 
+      // Track if we've reached unlock threshold - will handle in touchend
       if (newPosition > maxPosition * 0.8) {
-        setIsDragging(false)
-        setSliderPosition(0)
-        
-        // Request fullscreen immediately and synchronously from touch event
-        // Note: iOS Safari doesn't support Fullscreen API - fullscreen is only available
-        // when added to home screen as PWA. Android browsers support it.
-        const tryFullscreen = (element: HTMLElement) => {
-          try {
-            if (element.requestFullscreen) {
-              element.requestFullscreen().catch(() => {})
-            } else if ((element as any).webkitRequestFullscreen) {
-              (element as any).webkitRequestFullscreen()
-            } else if ((element as any).webkitEnterFullscreen) {
-              (element as any).webkitEnterFullscreen()
-            } else if ((element as any).msRequestFullscreen) {
-              (element as any).msRequestFullscreen()
-            } else if ((element as any).mozRequestFullScreen) {
-              (element as any).mozRequestFullScreen()
-            }
-          } catch (err: unknown) {
-            // Silently fail - some browsers don't support fullscreen
-          }
-        }
-        
-        // Try immediately (must be synchronous for mobile browsers)
-        tryFullscreen(document.documentElement)
-        tryFullscreen(document.body)
-        
-        handleUnlock()
+        shouldUnlockRef.current = true
+      } else {
+        shouldUnlockRef.current = false
       }
     }
 
-    const handleTouchEnd = () => {
+    const handleTouchEnd = (e: TouchEvent) => {
       if (isLocked) {
-        setIsDragging(false)
-        setSliderPosition(0)
+        // Check if we should unlock (slider reached threshold)
+        if (shouldUnlockRef.current) {
+          setIsDragging(false)
+          setSliderPosition(0)
+          shouldUnlockRef.current = false
+          
+          // Request fullscreen immediately and synchronously from touchend event
+          // This is critical - mobile browsers require fullscreen to be in touchend, not touchmove
+          const tryFullscreen = (element: HTMLElement) => {
+            try {
+              if (element.requestFullscreen) {
+                element.requestFullscreen().catch(() => {})
+              } else if ((element as any).webkitRequestFullscreen) {
+                (element as any).webkitRequestFullscreen()
+              } else if ((element as any).webkitEnterFullscreen) {
+                (element as any).webkitEnterFullscreen()
+              } else if ((element as any).msRequestFullscreen) {
+                (element as any).msRequestFullscreen()
+              } else if ((element as any).mozRequestFullScreen) {
+                (element as any).mozRequestFullScreen()
+              }
+            } catch (err: unknown) {
+              // Silently fail - some browsers don't support fullscreen
+            }
+          }
+          
+          // Try immediately (must be synchronous for mobile browsers)
+          tryFullscreen(document.documentElement)
+          tryFullscreen(document.body)
+          
+          handleUnlock()
+        } else {
+          setIsDragging(false)
+          setSliderPosition(0)
+        }
       }
     }
 
@@ -2073,6 +2229,45 @@ export default function Home() {
                 {appHtml}
               </pre>
             </div>
+            
+            {/* Reset Button - Bottom of code popup */}
+            <button
+              onClick={handleResetApp}
+              disabled={loading}
+              style={{
+                width: '100%',
+                marginTop: '20px',
+                background: 'linear-gradient(135deg, #FF3B30 0%, #FF2D20 50%, #FF1A0D 100%)',
+                color: '#fff',
+                border: 'none',
+                padding: '14px',
+                borderRadius: '10px',
+                fontSize: '16px',
+                fontWeight: '600',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.6 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                boxShadow: '0 2px 8px rgba(255, 59, 48, 0.3)',
+                transition: 'transform 0.1s ease'
+              }}
+              onMouseDown={(e) => {
+                if (!loading) {
+                  e.currentTarget.style.transform = 'scale(0.97)'
+                }
+              }}
+              onMouseUp={(e) => {
+                e.currentTarget.style.transform = 'scale(1)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)'
+              }}
+            >
+              <span>🔄</span>
+              <span>Reset App</span>
+            </button>
           </div>
         </div>
       )}

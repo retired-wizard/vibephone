@@ -12,7 +12,7 @@ const APP_DESCRIPTIONS: Record<string, string> = {
   'Todo List': 'A todo list app where users can add tasks and check them off as complete. Simple list interface with add functionality.',
   'Drawing': 'A simple drawing pad using HTML5 canvas. Allow drawing with mouse/touch, change colors, clear the canvas. Basic drawing tool with brush functionality.',
   'Coin Flip': 'A coin flip simulator that randomly shows heads or tails when clicked. Fun animation and clear result display.',
-  'Snake': 'A classic Snake game where the player controls a snake that grows as it eats food. Use arrow keys or touch swipes to control direction. Game over when snake hits walls or itself. Score increases with each food eaten.'
+  'Snake': 'A classic Snake game where the player controls a snake that starts with 3 segments and grows as it eats food. Use arrow keys or touch swipes to control direction. Game over when snake hits walls or itself. Score increases with each food eaten.'
 }
 
 export async function POST(request: Request) {
