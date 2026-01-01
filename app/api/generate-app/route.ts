@@ -8,7 +8,6 @@ const APP_DESCRIPTIONS: Record<string, string> = {
   'Calculator': 'A fully functional calculator with basic arithmetic operations (+, -, ×, ÷), clear functions, and a numeric display. Should have a modern, dark theme with a grid of buttons.',
   'Notes': 'A simple note-taking app with a text area for writing notes. Should allow typing, editing, and saving notes. Clean, minimal design with focus on text input.',
   'Clock': 'A digital clock that displays the current time, updating every second. Can show time in 12-hour or 24-hour format. Simple, readable display.',
-  'Weather': 'A weather display app showing current weather conditions. Use mock/example weather data. Display temperature, condition (sunny/cloudy/etc), and maybe a weather icon.',
   'Stopwatch': 'A stopwatch/timer with start, stop, and reset buttons. Shows elapsed time in MM:SS:MS format. Simple controls with a large time display.',
   'Todo List': 'A todo list app where users can add tasks, check them off as complete, and delete them. Simple list interface with add/remove functionality.',
   'Drawing': 'A simple drawing pad using HTML5 canvas. Allow drawing with mouse/touch, change colors, clear the canvas. Basic drawing tool with brush functionality.',
@@ -16,7 +15,10 @@ const APP_DESCRIPTIONS: Record<string, string> = {
 }
 
 export async function POST(request: Request) {
-  const { appName } = await request.json()
+  const { appName, aspectRatio } = await request.json()
+  
+  // Default to 9:16 if aspect ratio not provided
+  const appAspectRatio = aspectRatio || '9:16'
   
   if (!OPENROUTER_API_KEY) {
     console.error('OPENROUTER_API_KEY is not set')
@@ -33,7 +35,9 @@ export async function POST(request: Request) {
 Requirements:
 - Single HTML file with all CSS in <style> tags and all JavaScript in <script> tags
 - Must work in a sandboxed iframe (no external resources, all code inline)
-- Mobile-friendly responsive design
+- The app will be displayed in a container with an exact aspect ratio of ${appAspectRatio} (${appAspectRatio.split(':')[0]} units wide by ${appAspectRatio.split(':')[1]} units tall)
+- Design should be optimized for this ${appAspectRatio} aspect ratio - it will fill the entire viewport
+- Mobile-friendly responsive design that works within this ${appAspectRatio} aspect ratio
 - Modern, clean UI with dark theme
 - Fully functional - all features must work
 - Include a postMessage notification when the app is ready: window.parent.postMessage({ type: 'app-ready', appName: '${appName}' }, '*')

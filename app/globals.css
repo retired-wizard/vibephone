@@ -140,6 +140,7 @@ body {
 .home-button-container {
   display: flex;
   justify-content: center;
+  align-items: center;
   padding: 12px 0;
 }
 
@@ -170,6 +171,6 @@ body {
   }
   
   .home-button-container {
-    padding: 12px 0;
+    padding: 12px 20px;
   }
 }

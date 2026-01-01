@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 export default function Home() {
   const [time, setTime] = useState(() => {
@@ -17,6 +17,11 @@ export default function Home() {
   const [appHtml, setAppHtml] = useState<string | null>(null)
   const [loadingMessage, setLoadingMessage] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [showCodePopup, setShowCodePopup] = useState(false)
+  const screenAreaRef = useRef<HTMLDivElement>(null)
+  const homeButtonPressTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const isHomeButtonPressedRef = useRef(false)
+  const longPressOccurredRef = useRef(false)
 
   useEffect(() => {
     // Clear all cached apps when the site loads/reloads
@@ -109,6 +114,27 @@ export default function Home() {
     }, 3500) // 3.5 seconds between messages
 
     try {
+      // Calculate actual aspect ratio of screen area after it renders
+      // Use requestAnimationFrame to ensure element is rendered
+      await new Promise(resolve => requestAnimationFrame(resolve))
+      await new Promise(resolve => setTimeout(resolve, 100)) // Small delay to ensure rendering
+      
+      let aspectRatio = '9:16' // Default fallback
+      const screenElement = document.querySelector('.screen-area') as HTMLElement
+      if (screenElement) {
+        const rect = screenElement.getBoundingClientRect()
+        if (rect.width > 0 && rect.height > 0) {
+          const width = rect.width
+          const height = rect.height
+          // Calculate aspect ratio and simplify to simplest form
+          const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b)
+          const divisor = gcd(Math.round(width * 1000), Math.round(height * 1000))
+          const aspectWidth = Math.round((width * 1000) / divisor)
+          const aspectHeight = Math.round((height * 1000) / divisor)
+          aspectRatio = `${aspectWidth}:${aspectHeight}`
+        }
+      }
+      
       // Call API to generate app with timeout
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 second timeout
@@ -116,7 +142,7 @@ export default function Home() {
       const response = await fetch('/api/generate-app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appName }),
+        body: JSON.stringify({ appName, aspectRatio }),
         signal: controller.signal
       })
       
@@ -166,10 +192,44 @@ export default function Home() {
   }
 
   const handleHomeClick = () => {
+    // If code popup is showing, hide it and go home
+    if (showCodePopup) {
+      setShowCodePopup(false)
+      setCurrentApp(null)
+      setAppHtml(null)
+      setLoading(false)
+      setError(null)
+      return
+    }
+    // Otherwise go home
     setCurrentApp(null)
     setAppHtml(null)
     setLoading(false)
     setError(null)
+  }
+
+  const handleHomeButtonPress = () => {
+    longPressOccurredRef.current = false
+    // Only work if we're in an app
+    if (!currentApp || !appHtml || loading || error) {
+      return
+    }
+    
+    isHomeButtonPressedRef.current = true
+    homeButtonPressTimerRef.current = setTimeout(() => {
+      if (isHomeButtonPressedRef.current) {
+        longPressOccurredRef.current = true
+        setShowCodePopup(true)
+      }
+    }, 2000) // 2 seconds
+  }
+
+  const handleHomeButtonRelease = () => {
+    isHomeButtonPressedRef.current = false
+    if (homeButtonPressTimerRef.current) {
+      clearTimeout(homeButtonPressTimerRef.current)
+      homeButtonPressTimerRef.current = null
+    }
   }
 
   // Apps that are easy for AI to generate - simple, single-purpose utilities
@@ -177,7 +237,6 @@ export default function Home() {
     { name: 'Calculator', icon: '🔢', gradient: 'linear-gradient(135deg, #8E8E93 0%, #7A7A80 100%)' },
     { name: 'Notes', icon: '📝', gradient: 'linear-gradient(135deg, #D4B84A 0%, #C4A83A 100%)' },
     { name: 'Clock', icon: '⏰', gradient: 'linear-gradient(135deg, #40E0D0 0%, #30D0C0 100%)' },
-    { name: 'Weather', icon: '☀️', gradient: 'linear-gradient(135deg, #4A7FC8 0%, #3A6FB8 100%)' },
     { name: 'Stopwatch', icon: '⏱️', gradient: 'linear-gradient(135deg, #4FA86F 0%, #3F985F 100%)' },
     { name: 'Todo List', icon: '📋', gradient: 'linear-gradient(135deg, #D85A5A 0%, #C84A4A 100%)' },
     { name: 'Drawing', icon: '✏️', gradient: 'linear-gradient(135deg, #C8C8CC 0%, #B8B8BD 100%)' },
@@ -189,7 +248,7 @@ export default function Home() {
       {/* Device Bezel - 9:16 aspect ratio, fullscreen on mobile */}
       <div className="device-bezel">
         {/* Screen Area - 9:16 aspect ratio */}
-        <div className="screen-area">
+        <div ref={screenAreaRef} className="screen-area">
           {/* Status Bar - Early iOS style */}
           <div style={{
             display: 'flex',
@@ -472,6 +531,7 @@ export default function Home() {
               '0 1px 3px rgba(0, 0, 0, 0.6),' +
               'inset 0 1px 2px rgba(255, 255, 255, 0.05),' +
               'inset 0 -1px 2px rgba(0, 0, 0, 0.6)'
+            handleHomeButtonPress()
           }}
           onMouseUp={(e) => {
             e.currentTarget.style.transform = 'scale(1)'
@@ -479,14 +539,38 @@ export default function Home() {
               '0 2px 6px rgba(0, 0, 0, 0.6),' +
               'inset 0 1px 2px rgba(255, 255, 255, 0.08),' +
               'inset 0 -1px 2px rgba(0, 0, 0, 0.5)'
+            const wasLongPress = longPressOccurredRef.current
+            handleHomeButtonRelease()
+            // Only go home if it wasn't a long press (long press already showed popup)
+            if (!wasLongPress) {
+              handleHomeClick()
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)'
+            e.currentTarget.style.boxShadow = 
+              '0 2px 6px rgba(0, 0, 0, 0.6),' +
+              'inset 0 1px 2px rgba(255, 255, 255, 0.08),' +
+              'inset 0 -1px 2px rgba(0, 0, 0, 0.5)'
+            handleHomeButtonRelease()
           }}
           onTouchStart={(e) => {
             e.currentTarget.style.transform = 'scale(0.92)'
+            handleHomeButtonPress()
           }}
           onTouchEnd={(e) => {
             e.currentTarget.style.transform = 'scale(1)'
+            const wasLongPress = longPressOccurredRef.current
+            handleHomeButtonRelease()
+            // Only go home if it wasn't a long press (long press already showed popup)
+            if (!wasLongPress) {
+              handleHomeClick()
+            }
           }}
-          onClick={handleHomeClick}
+          onTouchCancel={(e) => {
+            e.currentTarget.style.transform = 'scale(1)'
+            handleHomeButtonRelease()
+          }}
           >
             {/* Inner button circle */}
             <div style={{
@@ -500,6 +584,91 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Code Popup Modal */}
+      {showCodePopup && appHtml && (
+        <div
+          onClick={() => setShowCodePopup(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '20px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: '#1a1a1a',
+              borderRadius: '12px',
+              padding: '20px',
+              maxWidth: '90%',
+              maxHeight: '80vh',
+              width: '100%',
+              overflow: 'auto',
+              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px'
+            }}>
+              <h2 style={{
+                color: '#fff',
+                fontSize: '18px',
+                fontWeight: '600',
+                margin: 0
+              }}>
+                {currentApp} Code
+              </h2>
+              <button
+                onClick={() => setShowCodePopup(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#fff',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  padding: '0',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <pre style={{
+              background: '#000',
+              padding: '16px',
+              borderRadius: '8px',
+              overflow: 'auto',
+              color: '#fff',
+              fontSize: '12px',
+              lineHeight: '1.5',
+              fontFamily: 'Monaco, "Courier New", monospace',
+              whiteSpace: 'pre-wrap',
+              wordWrap: 'break-word',
+              margin: 0,
+              maxHeight: '60vh'
+            }}>
+              {appHtml}
+            </pre>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
