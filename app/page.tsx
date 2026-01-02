@@ -46,8 +46,12 @@ export default function Home() {
   const deviceContainerRef = useRef<HTMLDivElement>(null)
   const fullscreenAttemptRef = useRef<number>(0)
   const shouldUnlockRef = useRef(false)
-  // Generate version once per build - use fixed default to avoid hydration mismatch
-  const buildVersion = 'v1.0.0'
+  const customInputRef = useRef<HTMLTextAreaElement>(null)
+  // Build version for cache invalidation - automatically set at build time in next.config.js
+  // Each build generates a new timestamp-based version, which triggers cache clearing for users
+  const buildVersion = typeof window !== 'undefined' && process.env.NEXT_PUBLIC_BUILD_VERSION
+    ? process.env.NEXT_PUBLIC_BUILD_VERSION
+    : 'v1.0.0' // Fallback if env var not available (shouldn't happen in production)
 
   useEffect(() => {
     // Check if build version changed - if so, clear all cached apps
@@ -112,6 +116,27 @@ export default function Home() {
     }, 1000)
     return () => clearInterval(interval)
   }, [])
+
+  // Auto-focus custom input when it's shown
+  useEffect(() => {
+    if (showCustomInput && customInputRef.current) {
+      // Try to focus immediately, then again after a short delay to ensure it works
+      const focusInput = () => {
+        if (customInputRef.current) {
+          customInputRef.current.focus()
+          // On mobile, ensure the keyboard appears
+          if (isMobile) {
+            customInputRef.current.click()
+          }
+        }
+      }
+      // Try immediately
+      focusInput()
+      // Try again after render completes
+      setTimeout(focusInput, 50)
+      setTimeout(focusInput, 150)
+    }
+  }, [showCustomInput, isMobile])
 
   // Show update button when user returns to app that has a pending update
   useEffect(() => {
@@ -974,7 +999,7 @@ export default function Home() {
         setCurrentApp((prevApp) => {
           // Only update if we're on the correct app and have pending HTML
           if (prevApp === prevPendingName) {
-            // Cache the updated version
+            // Cache the updated app
             localStorage.setItem(`app_${prevApp}`, prevPendingHtml)
             // Update description if pending description exists
             const pendingDesc = localStorage.getItem(`app_${prevApp}_desc_pending`)
@@ -1546,7 +1571,7 @@ export default function Home() {
               ))}
             </div>
             
-            {/* Bottom bar with version and fullscreen button */}
+            {/* Bottom bar with fullscreen button */}
             <div style={{
               position: 'absolute',
               bottom: '0',
@@ -1651,19 +1676,6 @@ export default function Home() {
                   Fullscreen
                 </button>
               )}
-              
-              {/* Version indicator - Bottom right corner */}
-              <div style={{
-                fontSize: '9px',
-                color: 'rgba(255, 255, 255, 0.4)',
-                fontFamily: 'Helvetica Neue',
-                fontWeight: '300',
-                letterSpacing: '0.3px',
-                userSelect: 'none',
-                WebkitUserSelect: 'none'
-              }}>
-                {buildVersion}
-              </div>
             </div>
           </div>
           )}
@@ -2052,7 +2064,13 @@ export default function Home() {
 
                 {/* Pen and Paper Button */}
                 <button
-                  onClick={() => setShowCustomInput(true)}
+                  onClick={() => {
+                    setShowCustomInput(true)
+                    // Focus the input immediately after state update
+                    setTimeout(() => {
+                      customInputRef.current?.focus()
+                    }, 0)
+                  }}
                   disabled={isFixingApp || isEnhancingApp}
                   style={{
                     background: 'linear-gradient(135deg, #3498DB 0%, #2980B9 50%, #1F6391 100%)',
@@ -2091,6 +2109,7 @@ export default function Home() {
                 gap: '12px'
               }}>
                 <textarea
+                  ref={customInputRef}
                   value={customCommand}
                   onChange={(e) => setCustomCommand(e.target.value)}
                   onTouchStart={(e) => e.stopPropagation()}
