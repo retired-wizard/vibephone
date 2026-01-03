@@ -33,7 +33,7 @@ export default function SettingsApp({ onModelChange }: SettingsAppProps) {
           setModels(data.data)
           
           // Check if saved model exists in the available models
-          let modelToUse = savedModel
+          let modelToUse: string = savedModel || ''
           const savedModelExists = savedModel ? data.data.some((m: Model) => m.id === savedModel) : false
           
           // If no saved model OR saved model doesn't exist in list, use default
@@ -45,7 +45,9 @@ export default function SettingsApp({ onModelChange }: SettingsAppProps) {
             localStorage.setItem('selected_llm_model', defaultModel.id)
           }
           
-          setSelectedModel(modelToUse)
+          if (modelToUse) {
+            setSelectedModel(modelToUse)
+          }
         } else {
           setError('Failed to load models')
         }
