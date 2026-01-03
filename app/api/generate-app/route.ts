@@ -96,7 +96,7 @@ User Description: "${body.description}"
 REQUIREMENTS:
 1. Generate an appropriate app name (2-4 words, clear and descriptive)
 2. Choose a relevant emoji icon (single emoji, appropriate for the app concept)
-3. Create the app code
+3. Create the app code using React
 
 OUTPUT FORMAT (REQUIRED):
 ===APP_NAME===
@@ -113,7 +113,72 @@ OUTPUT FORMAT (REQUIRED):
 
 [HTML code here - start with <!DOCTYPE html> and end with </html>]
 
-The app should be a single-file HTML application with all CSS in <style> and JavaScript in <script> tags. Aspect ratio: ${appAspectRatio} (fills entire viewport). Dark theme, mobile-friendly. Include: window.parent.postMessage({ type: 'app-ready', appName: '[generated app name]' }, '*') when ready.
+The app should be a single-file React application. Use this exact structure:
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>[App Name]</title>
+  <style>
+    /* Your CSS styles here */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      width: 100vw; 
+      height: 100vh; 
+      overflow: hidden;
+      background: #1a1a1a;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    #root { width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <!-- React and ReactDOM from CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel Standalone for JSX compilation -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- App code with JSX -->
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    
+    function App() {
+      // Your React component code here
+      // Use functional components with hooks
+      // Use useState for state management
+      // Use useEffect for side effects
+      
+      return (
+        <div>
+          {/* Your JSX here */}
+        </div>
+      );
+    }
+    
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+    
+    // Notify parent when ready
+    window.parent.postMessage({ type: 'app-ready', appName: '[generated app name]' }, '*');
+  </script>
+</body>
+</html>
+
+REACT REQUIREMENTS:
+- Use React functional components (not class components)
+- Use React hooks: useState for state, useEffect for side effects
+- Use JSX syntax for rendering
+- Follow React best practices: proper event handling, conditional rendering, lists with keys
+- Aspect ratio: ${appAspectRatio} (fills entire viewport)
+- Dark theme, mobile-friendly
+- Include: window.parent.postMessage({ type: 'app-ready', appName: '[generated app name]' }, '*') when the component mounts
 
 ${INTERNET_ACCESS_INSTRUCTIONS}
 
@@ -133,7 +198,7 @@ Core Rule: Build ONLY the essential, foundational features needed for this app t
           messages: [
             {
               role: 'system',
-              content: 'You are an expert web developer who creates single-file HTML applications. Return a concise description followed by valid HTML code in the specified format. Use the exact delimiter format provided.'
+              content: 'You are an expert React developer who creates single-file React applications using functional components and hooks. Return a concise description followed by valid HTML code with embedded React/JSX in the specified format. Use the exact delimiter format provided.'
             },
             {
               role: 'user',
@@ -247,16 +312,83 @@ Core Rule: Build ONLY the essential, foundational features needed for this app t
 
   const appDescription = APP_DESCRIPTIONS[appName] || `A simple ${appName} app`
   
-  const prompt = `Create a single-file HTML app for "${appName}" - the MOST FOUNDATIONAL version that works.
+  const prompt = `Create a single-file React app for "${appName}" - the MOST FOUNDATIONAL version that works.
 
 Core Rule: Build ONLY the essential, foundational features needed for this app to function. Nothing extra. This is the minimal core - simple but solid, easily expandable later.
 
 Technical:
-- Single HTML file: CSS in <style>, JavaScript in <script>, all inline
-- Works in sandboxed iframe (no external resources)
+- Single HTML file with embedded React/JSX
+- Use React functional components with hooks (useState, useEffect)
+- Include React and ReactDOM from CDN (unpkg.com)
+- Include Babel Standalone for JSX compilation
+- CSS in <style> tags, React code in <script type="text/babel"> tag
+- Works in sandboxed iframe
 - Aspect ratio: ${appAspectRatio} (fills entire viewport)
 - Dark theme, mobile-friendly
-- Include: window.parent.postMessage({ type: 'app-ready', appName: '${appName}' }, '*') when ready
+- Include: window.parent.postMessage({ type: 'app-ready', appName: '${appName}' }, '*') when component mounts
+
+Use this exact structure:
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${appName}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      width: 100vw; 
+      height: 100vh; 
+      overflow: hidden;
+      background: #1a1a1a;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    #root { width: 100%; height: 100%; }
+    /* Your additional styles here */
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <!-- React and ReactDOM from CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel Standalone for JSX compilation -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- App code with JSX -->
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    
+    function App() {
+      // Your React component code here
+      // Use useState for state management
+      // Use useEffect for side effects
+      
+      return (
+        <div>
+          {/* Your JSX here */}
+        </div>
+      );
+    }
+    
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+    
+    // Notify parent when ready
+    window.parent.postMessage({ type: 'app-ready', appName: '${appName}' }, '*');
+  </script>
+</body>
+</html>
+
+REACT REQUIREMENTS:
+- Use functional components (not class components)
+- Use React hooks: useState for state, useEffect for side effects
+- Use JSX syntax for rendering
+- Follow React best practices: proper event handling, conditional rendering, lists with keys
+- Handle events with React event handlers (onClick, onChange, etc.)
 
 ${INTERNET_ACCESS_INSTRUCTIONS}
 
@@ -297,7 +429,7 @@ Do NOT use markdown code blocks. The description should be concise but complete 
         messages: [
           {
             role: 'system',
-            content: 'You are an expert web developer who creates single-file HTML applications. Return a concise description followed by valid HTML code in the specified format. Use the exact delimiter format provided.'
+            content: 'You are an expert React developer who creates single-file React applications using functional components and hooks. Return a concise description followed by valid HTML code with embedded React/JSX in the specified format. Use the exact delimiter format provided.'
           },
           {
             role: 'user',

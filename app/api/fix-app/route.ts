@@ -63,28 +63,87 @@ export async function POST(request: Request) {
   // Default to 9:16 if aspect ratio not provided
   const appAspectRatio = aspectRatio || '9:16'
 
-  const prompt = `Rebuild the "${appName}" app from scratch based on this description. The user was frustrated with the previous version, so ensure this rebuilt version works correctly and all features function properly.
+  const prompt = `Rebuild the "${appName}" React app from scratch based on this description. The user was frustrated with the previous version, so ensure this rebuilt version works correctly and all features function properly.
 
 App Description:
 ${description}
 
 CRITICAL REQUIREMENTS:
-- Build a working, functional app that matches the description exactly
+- Build a working, functional React app that matches the description exactly
 - Ensure ALL features described actually work
-- All buttons must have proper event handlers and function correctly
+- All buttons must have proper React event handlers (onClick, etc.) and function correctly
 - All content must be visible within the viewport
 - If content extends beyond screen, scrolling must work properly
 - Fix any issues that would prevent the app from working smoothly
 
 Technical Requirements:
-- Single HTML file: CSS in <style>, JavaScript in <script>, all inline
-- Works in sandboxed iframe (no external resources)
+- Single HTML file with embedded React/JSX
+- Use React functional components with hooks (useState, useEffect)
+- Include React and ReactDOM from CDN (unpkg.com)
+- Include Babel Standalone for JSX compilation
+- CSS in <style> tags, React code in <script type="text/babel"> tag
+- Works in sandboxed iframe
 - Aspect ratio: ${appAspectRatio} (fills entire viewport)
 - Dark theme, mobile-friendly
-- Include: window.parent.postMessage({ type: 'app-ready', appName: '${appName}' }, '*') when ready
-- Ensure all buttons have working event handlers
+- Include: window.parent.postMessage({ type: 'app-ready', appName: '${appName}' }, '*') when component mounts
+- Ensure all buttons have working React event handlers
 - Ensure all features function correctly
 - Ensure all content is visible and accessible
+- Follow React best practices: proper event handling, conditional rendering, lists with keys
+
+Use this exact structure:
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${appName}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { 
+      width: 100vw; 
+      height: 100vh; 
+      overflow: hidden;
+      background: #1a1a1a;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    #root { width: 100%; height: 100%; }
+    /* Your additional styles here */
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <!-- React and ReactDOM from CDN -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel Standalone for JSX compilation -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- App code with JSX -->
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    
+    function App() {
+      // Your React component code here
+      
+      return (
+        <div>
+          {/* Your JSX here */}
+        </div>
+      );
+    }
+    
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+    
+    // Notify parent when ready
+    window.parent.postMessage({ type: 'app-ready', appName: '${appName}' }, '*');
+  </script>
+</body>
+</html>
 
 ${INTERNET_ACCESS_INSTRUCTIONS}
 
@@ -124,7 +183,7 @@ Do NOT use markdown code blocks. Build a fresh, working version of the app that 
         messages: [
           {
             role: 'system',
-            content: 'You are an expert web developer who rebuilds apps from descriptions. Build working, functional apps that match descriptions exactly. Return a concise description followed by valid HTML code in the specified format. Use the exact delimiter format provided.'
+            content: 'You are an expert React developer who rebuilds React apps from descriptions. Build working, functional React apps that match descriptions exactly. Return a concise description followed by valid HTML code with embedded React/JSX in the specified format. Use the exact delimiter format provided.'
           },
           {
             role: 'user',

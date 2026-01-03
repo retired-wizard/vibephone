@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     )
   }
 
-  const prompt = `Enhance this "${appName}" app by adding more advanced features and functionality. The current app is functional, but you should add:
+  const prompt = `Enhance this "${appName}" React app by adding more advanced features and functionality. The current app is functional, but you should add:
 
 - Additional useful features that complement the core functionality
 - Enhanced user experience improvements
@@ -71,22 +71,23 @@ export async function POST(request: Request) {
 Keep all existing functionality intact while adding new features on top. Make the app more feature-rich and impressive.
 
 IMPORTANT - Auto-Optimize Existing Code:
-- BEFORE adding new features, review and optimize the existing code
+- BEFORE adding new features, review and optimize the existing React code
 - Remove redundant code, consolidate duplicate functions, simplify complex logic
 - Optimize CSS: merge duplicate styles, use efficient selectors, remove unused styles
-- Refactor JavaScript: combine similar functions, reduce code duplication, improve efficiency
+- Refactor React components: combine similar components, reduce code duplication, improve efficiency
+- Optimize React hooks usage: consolidate state, optimize useEffect dependencies
 - The goal is to make the code BETTER and ideally SMALLER even after adding features
 - Optimize existing code first, then add new features efficiently on top
 
 Code Efficiency Requirements:
-- Write streamlined, efficient code - avoid redundancy and unnecessary complexity
+- Write streamlined, efficient React code - avoid redundancy and unnecessary complexity
 - Use concise, optimized implementations rather than verbose code
-- Reuse code where possible (shared functions, DRY principles)
-- Keep functions focused and minimal - avoid bloated code
+- Reuse components and hooks where possible (DRY principles)
+- Keep components focused and minimal - avoid bloated code
 - Optimize CSS to avoid duplication - use efficient selectors and shared styles
 - Keep the HTML file compact while adding features - quality over quantity of code
 
-Current HTML code:
+Current HTML code (React app):
 \`\`\`html
 ${currentHtml}
 \`\`\`
@@ -96,13 +97,13 @@ First, provide a detailed natural language description of the COMPLETE app as it
 - All features (existing + new) - describe the complete functionality in detail, including all original features and all newly added features
 - Basic UI layout and structure - describe the full UI layout, positioning of all elements, visual hierarchy, and how all components are arranged
 - Key interactions and behaviors - describe all interactions, what happens when users interact with the app, how data flows, state changes, and user feedback
-- Important technical implementation details (if critical for functionality) - mention algorithms, data structures, event handling, state management, and any technical approaches used
+- Important technical implementation details (if critical for functionality) - mention React hooks usage, state management, event handling, and any technical approaches used
 - Basic design elements - describe colors, typography, spacing, visual effects, button styles, animations, and overall aesthetic
 - User experience flow - describe how users navigate through the app, complete tasks, and interact with all features
 - Any special features or unique aspects of the implementation, including both original and enhanced features
 - This description must be complete enough for an LLM to rebuild the entire app from scratch using only this description
 
-Then provide the complete enhanced HTML code.
+Then provide the complete enhanced HTML code with React.
 
 Use this exact format:
 ===DESCRIPTION===
@@ -112,11 +113,14 @@ Use this exact format:
 [HTML code here - start with <!DOCTYPE html> and end with </html>]
 
 Requirements:
-- Keep it as a single-file HTML application (all CSS in <style> tags, all JavaScript in <script> tags)
+- Keep it as a single-file React application (React/ReactDOM from CDN, Babel Standalone for JSX)
+- Use React functional components with hooks (useState, useEffect)
+- All CSS in <style> tags, React code in <script type="text/babel"> tag
 - Ensure all existing features still work
 - Add new features that enhance the app
 - Make the UI more polished and feature-rich
 - Ensure the code works in a sandboxed iframe
+- Follow React best practices: proper event handling, conditional rendering, lists with keys
 - Do NOT use markdown code blocks
 
 ${INTERNET_ACCESS_INSTRUCTIONS}`
@@ -135,7 +139,7 @@ ${INTERNET_ACCESS_INSTRUCTIONS}`
         messages: [
           {
             role: 'system',
-            content: 'You are an expert web developer who enhances existing apps by adding new features and improving functionality. Return a concise description followed by valid HTML code in the specified format. Use the exact delimiter format provided.'
+            content: 'You are an expert React developer who enhances existing React apps by adding new features and improving functionality. Return a concise description followed by valid HTML code with embedded React/JSX in the specified format. Use the exact delimiter format provided.'
           },
           {
             role: 'user',
