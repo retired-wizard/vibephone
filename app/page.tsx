@@ -1943,7 +1943,7 @@ export default function Home() {
                 <div style={{ position: 'relative', width: '100%', height: '100%', pointerEvents: 'auto' }}>
                   <iframe
                     srcDoc={appHtml}
-                    sandbox="allow-scripts allow-same-origin allow-forms"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-top-navigation allow-popups allow-popups-to-escape-sandbox"
                     style={{
                       width: '100%',
                       height: '100%',
@@ -2173,52 +2173,23 @@ export default function Home() {
                 }}
                 onClick={() => setShowAddAppDialog(true)}
               >
-                {/* Plus Icon - Authentic iOS 1-4 style */}
+                {/* Plus Icon */}
                 <div
-                  className="ios-icon-shadow ios-icon-gloss"
                   style={{
-                    width: '57px',
-                    height: '57px',
-                    borderRadius: '10px',
-                    background: 'linear-gradient(135deg, #8E8E93 0%, #7A7A80 100%)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: '42px',
                     marginBottom: '4px',
-                    border: 'none',
-                    position: 'relative',
-                    boxShadow: 
-                      '0 1px 3px rgba(0, 0, 0, 0.5),' +
-                      'inset 0 1px 0 rgba(255, 255, 255, 0.3),' +
-                      'inset 0 -1px 0 rgba(0, 0, 0, 0.2)',
                     lineHeight: '1',
                     userSelect: 'none',
                     WebkitUserSelect: 'none',
                     MozUserSelect: 'none',
                     msUserSelect: 'none',
-                    opacity: 0.9,
-                    transition: 'opacity 0.3s ease'
+                    color: '#8E8E93'
                   }}
                 >
-                  <span style={{ 
-                    position: 'relative', 
-                    zIndex: 1,
-                    filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3))',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    lineHeight: '1',
-                    verticalAlign: 'middle',
-                    userSelect: 'none',
-                    WebkitUserSelect: 'none',
-                    MozUserSelect: 'none',
-                    msUserSelect: 'none',
-                    color: '#fff',
-                    fontWeight: '300'
-                  }}>
-                    +
-                  </span>
+                  +
                 </div>
                 
                 {/* Plus Label */}

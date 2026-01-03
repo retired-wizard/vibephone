@@ -100,6 +100,40 @@ body {
   to { transform: rotate(360deg); }
 }
 
+/* Magic pulse animation for signal bars */
+@keyframes magicPulse {
+  0%, 100% {
+    opacity: 0.8;
+    box-shadow: 
+      0 0 4px rgba(139, 92, 246, 0.8),
+      0 0 8px rgba(255, 107, 53, 0.6),
+      inset 0 0 2px rgba(255, 255, 255, 0.3);
+  }
+  50% {
+    opacity: 1;
+    box-shadow: 
+      0 0 8px rgba(139, 92, 246, 1),
+      0 0 16px rgba(255, 107, 53, 0.9),
+      0 0 24px rgba(139, 92, 246, 0.5),
+      inset 0 0 3px rgba(255, 255, 255, 0.5);
+  }
+}
+
+/* Sparkle shimmer animation for signal bars */
+@keyframes sparkleShimmer {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+}
+
 /* Magic sparks animation */
 .cauldron-sparks-container {
   position: absolute;

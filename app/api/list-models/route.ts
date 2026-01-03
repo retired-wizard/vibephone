@@ -106,9 +106,10 @@ export async function GET() {
       const promptPricePerMillion = promptPricePerToken * 1000000
       const completionPricePerMillion = completionPricePerToken * 1000000
       
-      // Format price strings and remove trailing zeros (e.g., "1.5000" -> "1.5", "15.0000" -> "15")
+      // Format price strings to 2 decimal places and remove trailing zeros (e.g., "1.50" -> "1.5", "15.00" -> "15")
       const formatPrice = (price: number): string => {
-        return price.toString().replace(/\.0+$/, '').replace(/(\.[0-9]*?)0+$/, '$1')
+        const formatted = price.toFixed(2)
+        return formatted.replace(/\.0+$/, '').replace(/(\.[0-9]*?)0+$/, '$1')
       }
       
       return {

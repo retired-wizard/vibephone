@@ -72,7 +72,7 @@ export default function SettingsApp({ onModelChange }: SettingsAppProps) {
     if (price === undefined || price === null) return 'N/A'
     const numPrice = typeof price === 'string' ? parseFloat(price) : price
     if (numPrice === 0) return 'Free'
-    return `$${numPrice.toFixed(4)}`
+    return `$${numPrice.toFixed(2)}`
   }
 
   return (
