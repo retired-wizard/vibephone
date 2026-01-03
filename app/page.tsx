@@ -1119,6 +1119,11 @@ export default function Home() {
       return
     }
 
+    // Close menu immediately and clear any custom input
+    setShowMagicDialog(false)
+    setShowCustomInput(false)
+    setCustomCommand('')
+
     // Show loading
     setLoading(true)
     setError(null)
