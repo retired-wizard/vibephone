@@ -1,7 +1,155 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import SettingsApp from './components/SettingsApp'
+
+// Type Definitions
+interface AppMetadata {
+  id: string              // Unique identifier (UUID or generated)
+  name: string            // Display name (unique per user)
+  icon: string            // Emoji or icon identifier
+  gradient: string        // CSS gradient string
+  description: string     // User's description of what app should do
+  type: 'default' | 'custom' | 'template'  // App type
+  createdAt: number       // Timestamp
+  updatedAt?: number      // Optional update timestamp
+}
+
+interface AppCreationRequest {
+  description: string
+  suggestedName?: string  // Optional name suggestion from user
+}
+
+interface DefaultApp {
+  name: string
+  icon: string
+  gradient: string
+}
+
+// App Management Utilities
+const generateAppId = (): string => {
+  return `app_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+}
+
+const validateIcon = (icon: string): boolean => {
+  if (!icon || typeof icon !== 'string') return false
+  // Basic validation: check if it's a reasonable emoji/icon string (1-3 characters typical for emojis)
+  return icon.trim().length > 0 && icon.trim().length <= 10
+}
+
+const generateAppGradient = (name: string): string => {
+  // Predefined gradient palette
+  const gradients = [
+    'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+    'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+    'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+    'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+    'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
+    'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
+    'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+    'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
+    'linear-gradient(135deg, #ff8a80 0%, #ea6100 100%)'
+  ]
+  
+  // Generate consistent gradient based on name hash
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return gradients[Math.abs(hash) % gradients.length]
+}
+
+const validateAppMetadata = (app: any): app is AppMetadata => {
+  return (
+    app &&
+    typeof app.id === 'string' &&
+    typeof app.name === 'string' &&
+    typeof app.icon === 'string' &&
+    typeof app.gradient === 'string' &&
+    typeof app.description === 'string' &&
+    (app.type === 'default' || app.type === 'custom' || app.type === 'template') &&
+    typeof app.createdAt === 'number'
+  )
+}
+
+const isAppNameUnique = (name: string, existingApps: AppMetadata[]): boolean => {
+  return !existingApps.some(app => app.name.toLowerCase() === name.toLowerCase())
+}
+
+const findAppById = (id: string, apps: AppMetadata[]): AppMetadata | null => {
+  return apps.find(app => app.id === id) || null
+}
+
+const findAppByName = (name: string, apps: AppMetadata[]): AppMetadata | null => {
+  return apps.find(app => app.name.toLowerCase() === name.toLowerCase()) || null
+}
+
+// Persistence Layer
+const STORAGE_KEY = 'vibephone_custom_apps'
+const STORAGE_VERSION = 1
+
+interface StoredApps {
+  version: number
+  apps: AppMetadata[]
+  createdAt: number
+  updatedAt: number
+}
+
+const loadApps = (): AppMetadata[] => {
+  if (typeof window === 'undefined') return []
+  
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (!stored) return []
+    
+    const data: StoredApps = JSON.parse(stored)
+    
+    // Version migration logic here (for future schema changes)
+    if (data.version !== STORAGE_VERSION) {
+      // For now, just return empty array if version mismatch
+      // In future, implement migration logic
+      console.warn(`Storage version mismatch: expected ${STORAGE_VERSION}, got ${data.version}`)
+      return []
+    }
+    
+    // Validate loaded apps
+    return data.apps.filter(validateAppMetadata)
+  } catch (error) {
+    console.error('Failed to load apps:', error)
+    return [] // Graceful degradation
+  }
+}
+
+const saveApps = (apps: AppMetadata[]): boolean => {
+  if (typeof window === 'undefined') return false
+  
+  try {
+    const data: StoredApps = {
+      version: STORAGE_VERSION,
+      apps,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+    return true
+  } catch (error) {
+    console.error('Failed to save apps:', error)
+    return false
+  }
+}
+
+const validateDescription = (description: string): boolean => {
+  const trimmed = description.trim()
+  return trimmed.length >= 10 && trimmed.length <= 500
+}
+
+const validateGeneratedHtml = (html: string): boolean => {
+  if (!html || typeof html !== 'string') return false
+  const htmlLower = html.toLowerCase()
+  // Check if it contains HTML structure
+  return htmlLower.includes('<html') || htmlLower.includes('<!doctype')
+}
 
 export default function Home() {
   const [time, setTime] = useState(() => {
@@ -40,6 +188,17 @@ export default function Home() {
   const [isDragging, setIsDragging] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [loadedApps, setLoadedApps] = useState<Set<string>>(new Set())
+  
+  // Custom apps state
+  const [customApps, setCustomApps] = useState<AppMetadata[]>([])
+  const [isLoadingApps, setIsLoadingApps] = useState(true)
+  const [appCreationError, setAppCreationError] = useState<string | null>(null)
+  
+  // Add app dialog state
+  const [showAddAppDialog, setShowAddAppDialog] = useState(false)
+  const [newAppDescription, setNewAppDescription] = useState('')
+  const [isCreatingApp, setIsCreatingApp] = useState(false)
+  
   const screenAreaRef = useRef<HTMLDivElement>(null)
   const homeButtonPressTimerRef = useRef<NodeJS.Timeout | null>(null)
   const isHomeButtonPressedRef = useRef(false)
@@ -59,6 +218,11 @@ export default function Home() {
   })
 
   useEffect(() => {
+    // Load custom apps from localStorage
+    const loadedCustomApps = loadApps()
+    setCustomApps(loadedCustomApps)
+    setIsLoadingApps(false)
+    
     // Clear all cached apps when the site loads/reloads
     const keys = Object.keys(localStorage)
     keys.forEach(key => {
@@ -268,6 +432,10 @@ export default function Home() {
       return
     }
 
+    // Check if this is a custom app
+    const clickedApp = allApps.find(app => app.name === appName)
+    const isCustomApp = clickedApp?.type === 'custom'
+
     // Show loading screen and track which app we're loading
     setLoading(true)
     setCurrentApp(appName)
@@ -328,10 +496,15 @@ export default function Home() {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 second timeout
       
+      // For custom apps, pass description; for default apps, pass appName
+      const requestBody = isCustomApp && clickedApp
+        ? { description: clickedApp.description, aspectRatio, model: savedModel }
+        : { appName, aspectRatio, model: savedModel }
+      
       const response = await fetch('/api/generate-app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appName, aspectRatio, model: savedModel }),
+        body: JSON.stringify(requestBody),
         signal: controller.signal
       })
       
@@ -849,6 +1022,116 @@ export default function Home() {
     }
   }
 
+  const handleCreateApp = async (request: AppCreationRequest) => {
+    // 1. Validate input
+    if (!validateDescription(request.description)) {
+      setAppCreationError('Description is invalid. Please provide a description (10-500 characters).')
+      return
+    }
+    
+    // 2. Set loading state
+    setIsCreatingApp(true)
+    setAppCreationError(null)
+    
+    try {
+      // 3. Call API - API will generate name and icon based on description
+      // Calculate aspect ratio
+      let aspectRatio = '9:16' // Default fallback
+      const screenElement = document.querySelector('.screen-area') as HTMLElement
+      if (screenElement) {
+        const rect = screenElement.getBoundingClientRect()
+        if (rect.width > 0 && rect.height > 0) {
+          const width = rect.width
+          const height = rect.height
+          const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b)
+          const divisor = gcd(Math.round(width * 1000), Math.round(height * 1000))
+          const aspectWidth = Math.round((width * 1000) / divisor)
+          const aspectHeight = Math.round((height * 1000) / divisor)
+          aspectRatio = `${aspectWidth}:${aspectHeight}`
+        }
+      }
+      
+      const response = await fetch('/api/generate-app', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          description: request.description,  // User's description
+          suggestedName: request.suggestedName,  // Optional override
+          aspectRatio: aspectRatio
+        })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to generate app')
+      }
+      
+      const data = await response.json()
+      
+      // 4. Validate response
+      if (!data.html || !validateGeneratedHtml(data.html)) {
+        throw new Error('Invalid app generated')
+      }
+      
+      if (!data.name || !data.icon) {
+        throw new Error('Missing app name or icon from generator')
+      }
+      
+      // Validate generated icon
+      if (!validateIcon(data.icon)) {
+        throw new Error('Invalid icon generated')
+      }
+      
+      // 5. Check name uniqueness (handle conflicts)
+      let appName = data.name.trim()
+      let attempt = 1
+      while (!isAppNameUnique(appName, allApps)) {
+        appName = `${data.name.trim()} ${attempt}`
+        attempt++
+        if (attempt > 100) {
+          throw new Error('Could not generate unique app name')
+        }
+      }
+      
+      // 6. Create metadata with generated name and icon
+      const metadata: AppMetadata = {
+        id: generateAppId(),
+        name: appName,
+        icon: data.icon,  // Generated by API based on description
+        gradient: generateAppGradient(appName),
+        description: request.description,  // User's original description
+        type: 'custom',
+        createdAt: Date.now()
+      }
+      
+      // 7. Cache app HTML
+      localStorage.setItem(`app_${metadata.name}`, data.html)
+      if (data.description) {
+        localStorage.setItem(`app_${metadata.name}_desc`, data.description)
+      }
+      
+      // 8. Add to custom apps
+      setCustomApps(prev => {
+        const updated = [...prev, metadata]
+        saveApps(updated)  // Persist
+        return updated
+      })
+      
+      // 9. Close dialog and reset state
+      setShowAddAppDialog(false)
+      setNewAppDescription('')
+      
+      // Optionally navigate to new app
+      // handleAppClick(metadata.name)
+      
+    } catch (error) {
+      console.error('App creation failed:', error)
+      setAppCreationError(error instanceof Error ? error.message : 'Failed to create app')
+    } finally {
+      setIsCreatingApp(false)
+    }
+  }
+
   const handleUpdateApp = () => {
     // Use functional state updates to ensure we have current values
     setPendingAppHtml((prevPendingHtml) => {
@@ -1015,8 +1298,8 @@ export default function Home() {
     }
   }, [isDragging, isLocked, handleUnlock])
 
-  // Apps that are easy for AI to generate - simple, single-purpose utilities
-  const apps = [
+  // Default apps that are easy for AI to generate - simple, single-purpose utilities
+  const defaultApps: DefaultApp[] = [
     { name: 'Calculator', icon: '🔢', gradient: 'linear-gradient(135deg, #8E8E93 0%, #7A7A80 100%)' },
     { name: 'Notes', icon: '📝', gradient: 'linear-gradient(135deg, #D4B84A 0%, #C4A83A 100%)' },
     { name: 'Clock', icon: '⏰', gradient: 'linear-gradient(135deg, #40E0D0 0%, #30D0C0 100%)' },
@@ -1027,6 +1310,20 @@ export default function Home() {
     { name: 'Snake', icon: '🐍', gradient: 'linear-gradient(135deg, #27AE60 0%, #229954 100%)' },
     { name: 'Settings', icon: '⚙️', gradient: 'linear-gradient(135deg, #8E8E93 0%, #7A7A80 100%)' }
   ]
+  
+  // Combined apps array (default + custom)
+  const allApps = useMemo(() => {
+    const defaultAppsWithMetadata: AppMetadata[] = defaultApps.map(app => ({
+      id: `default_${app.name}`,
+      name: app.name,
+      icon: app.icon,
+      gradient: app.gradient,
+      description: `${app.name} app`,
+      type: 'default' as const,
+      createdAt: 0
+    }))
+    return [...defaultAppsWithMetadata, ...customApps]
+  }, [customApps])
 
   // Helper function to check if an app has been loaded
   const isAppLoaded = (appName: string): boolean => {
@@ -1039,7 +1336,7 @@ export default function Home() {
     if (typeof window === 'undefined') return
     const checkLoadedApps = () => {
       const loaded = new Set<string>()
-      apps.forEach(app => {
+      allApps.forEach(app => {
         if (localStorage.getItem(`app_${app.name}`)) {
           loaded.add(app.name)
         }
@@ -1051,7 +1348,7 @@ export default function Home() {
     if (currentApp && appHtml) {
       setLoadedApps(prev => new Set([...prev, currentApp]))
     }
-  }, [currentApp, appHtml])
+  }, [currentApp, appHtml, allApps])
 
   return (
     <>
@@ -1413,7 +1710,7 @@ export default function Home() {
               alignItems: 'start',
               justifyItems: 'center'
             }}>
-              {apps.map((app, index) => (
+              {allApps.map((app, index) => (
                 <div
                   key={index}
                   style={{
@@ -1513,6 +1810,107 @@ export default function Home() {
                   </span>
                 </div>
               ))}
+              
+              {/* Plus Button - Add New App */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'transform 0.08s ease-out',
+                  WebkitTapHighlightColor: 'transparent',
+                  width: '100%'
+                }}
+                onMouseDown={(e) => {
+                  e.currentTarget.style.transform = 'scale(0.88)'
+                }}
+                onMouseUp={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)'
+                }}
+                onTouchStart={(e) => {
+                  e.currentTarget.style.transform = 'scale(0.88)'
+                }}
+                onTouchEnd={(e) => {
+                  e.currentTarget.style.transform = 'scale(1)'
+                  setShowAddAppDialog(true)
+                }}
+                onClick={() => setShowAddAppDialog(true)}
+              >
+                {/* Plus Icon - Authentic iOS 1-4 style */}
+                <div
+                  className="ios-icon-shadow ios-icon-gloss"
+                  style={{
+                    width: '57px',
+                    height: '57px',
+                    borderRadius: '10px',
+                    background: 'linear-gradient(135deg, #8E8E93 0%, #7A7A80 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '42px',
+                    marginBottom: '4px',
+                    border: 'none',
+                    position: 'relative',
+                    boxShadow: 
+                      '0 1px 3px rgba(0, 0, 0, 0.5),' +
+                      'inset 0 1px 0 rgba(255, 255, 255, 0.3),' +
+                      'inset 0 -1px 0 rgba(0, 0, 0, 0.2)',
+                    lineHeight: '1',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    MozUserSelect: 'none',
+                    msUserSelect: 'none',
+                    opacity: 0.9,
+                    transition: 'opacity 0.3s ease'
+                  }}
+                >
+                  <span style={{ 
+                    position: 'relative', 
+                    zIndex: 1,
+                    filter: 'drop-shadow(0 1px 1px rgba(0, 0, 0, 0.3))',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    lineHeight: '1',
+                    verticalAlign: 'middle',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                    MozUserSelect: 'none',
+                    msUserSelect: 'none',
+                    color: '#fff',
+                    fontWeight: '300'
+                  }}>
+                    +
+                  </span>
+                </div>
+                
+                {/* Plus Label */}
+                <span style={{
+                  fontSize: '10px',
+                  color: '#fff',
+                  fontWeight: '400',
+                  textAlign: 'center',
+                  fontFamily: 'Helvetica Neue',
+                  textShadow: '0 0.5px 0.5px rgba(0, 0, 0, 0.8)',
+                  maxWidth: '57px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  lineHeight: '1.2',
+                  letterSpacing: '-0.1px',
+                  userSelect: 'none',
+                  WebkitUserSelect: 'none',
+                  MozUserSelect: 'none',
+                  msUserSelect: 'none'
+                }}>
+                  New App
+                </span>
+              </div>
             </div>
             
             {/* Bottom bar with version and fullscreen button */}
@@ -2241,6 +2639,233 @@ export default function Home() {
               }}>
                 {appHtml}
               </pre>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Add App Dialog */}
+      {showAddAppDialog && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isCreatingApp) {
+              setShowAddAppDialog(false)
+              setNewAppDescription('')
+              setAppCreationError(null)
+            }
+          }}
+          onTouchStart={(e) => {
+            if (e.target === e.currentTarget && !isCreatingApp) {
+              setShowAddAppDialog(false)
+              setNewAppDescription('')
+              setAppCreationError(null)
+            }
+          }}
+          style={{
+            position: isMobile ? 'fixed' : 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+            padding: '20px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+            style={{
+              background: '#1a1a1a',
+              borderRadius: '16px',
+              padding: '24px',
+              width: '50%',
+              maxWidth: '400px',
+              minWidth: '300px',
+              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.7)',
+              border: '1px solid rgba(255, 255, 255, 0.1)'
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '20px'
+            }}>
+              <h2 style={{
+                color: '#fff',
+                fontSize: '18px',
+                fontWeight: '600',
+                margin: 0
+              }}>
+                Create New App
+              </h2>
+              <button
+                onClick={() => {
+                  if (!isCreatingApp) {
+                    setShowAddAppDialog(false)
+                    setNewAppDescription('')
+                    setAppCreationError(null)
+                  }
+                }}
+                disabled={isCreatingApp}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#fff',
+                  fontSize: '24px',
+                  cursor: isCreatingApp ? 'not-allowed' : 'pointer',
+                  padding: '0',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: isCreatingApp ? 0.5 : 0.7
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px'
+            }}>
+              <div>
+                <label style={{
+                  display: 'block',
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  marginBottom: '8px'
+                }}>
+                  Description
+                </label>
+                <textarea
+                  value={newAppDescription}
+                  onChange={(e) => setNewAppDescription(e.target.value)}
+                  disabled={isCreatingApp}
+                  placeholder="Describe what you want your app to do... (e.g., 'A weather app that shows local forecasts', 'A habit tracker with streaks', etc.)"
+                  style={{
+                    width: '100%',
+                    minHeight: '120px',
+                    padding: '12px',
+                    background: '#000',
+                    color: '#fff',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontFamily: 'inherit',
+                    resize: 'vertical',
+                    outline: 'none',
+                    touchAction: 'manipulation',
+                    opacity: isCreatingApp ? 0.6 : 1,
+                    cursor: isCreatingApp ? 'not-allowed' : 'text'
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape' && !isCreatingApp) {
+                      setShowAddAppDialog(false)
+                      setNewAppDescription('')
+                      setAppCreationError(null)
+                    }
+                  }}
+                />
+                <div style={{
+                  fontSize: '11px',
+                  color: 'rgba(255, 255, 255, 0.5)',
+                  marginTop: '6px'
+                }}>
+                  The app name and icon will be automatically generated based on your description.
+                </div>
+              </div>
+
+              {appCreationError && (
+                <div style={{
+                  padding: '12px',
+                  background: 'rgba(255, 107, 107, 0.2)',
+                  border: '1px solid rgba(255, 107, 107, 0.4)',
+                  borderRadius: '8px',
+                  color: '#ff6b6b',
+                  fontSize: '13px'
+                }}>
+                  {appCreationError}
+                </div>
+              )}
+
+              {isCreatingApp && (
+                <div style={{
+                  padding: '12px',
+                  background: 'rgba(139, 92, 246, 0.2)',
+                  border: '1px solid rgba(139, 92, 246, 0.4)',
+                  borderRadius: '8px',
+                  color: '#8B5CF6',
+                  fontSize: '13px',
+                  textAlign: 'center'
+                }}>
+                  Creating your app... This may take a moment.
+                </div>
+              )}
+
+              <div style={{
+                display: 'flex',
+                gap: '10px',
+                marginTop: '8px'
+              }}>
+                <button
+                  onClick={() => {
+                    if (!isCreatingApp) {
+                      setShowAddAppDialog(false)
+                      setNewAppDescription('')
+                      setAppCreationError(null)
+                    }
+                  }}
+                  disabled={isCreatingApp}
+                  style={{
+                    flex: 1,
+                    background: '#444',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: isCreatingApp ? 'not-allowed' : 'pointer',
+                    opacity: isCreatingApp ? 0.6 : 1
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (!isCreatingApp && newAppDescription.trim()) {
+                      handleCreateApp({ description: newAppDescription.trim() })
+                    }
+                  }}
+                  disabled={isCreatingApp || !newAppDescription.trim()}
+                  style={{
+                    flex: 2,
+                    background: isCreatingApp || !newAppDescription.trim()
+                      ? 'rgba(139, 92, 246, 0.5)'
+                      : 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: (isCreatingApp || !newAppDescription.trim()) ? 'not-allowed' : 'pointer',
+                    opacity: (isCreatingApp || !newAppDescription.trim()) ? 0.6 : 1
+                  }}
+                >
+                  {isCreatingApp ? 'Creating...' : 'Create App 🚀'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
