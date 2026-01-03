@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import SettingsApp from './components/SettingsApp'
 
 export default function Home() {
   const [time, setTime] = useState(() => {
@@ -1008,7 +1009,8 @@ export default function Home() {
     { name: 'Todo List', icon: '📋', gradient: 'linear-gradient(135deg, #D85A5A 0%, #C84A4A 100%)' },
     { name: 'Drawing', icon: '✏️', gradient: 'linear-gradient(135deg, #C8C8CC 0%, #B8B8BD 100%)' },
     { name: 'Coin Flip', icon: '🪙', gradient: 'linear-gradient(135deg, #8E6FB5 0%, #7E5FA5 100%)' },
-    { name: 'Snake', icon: '🐍', gradient: 'linear-gradient(135deg, #27AE60 0%, #229954 100%)' }
+    { name: 'Snake', icon: '🐍', gradient: 'linear-gradient(135deg, #27AE60 0%, #229954 100%)' },
+    { name: 'Settings', icon: '⚙️', gradient: 'linear-gradient(135deg, #8E8E93 0%, #7A7A80 100%)' }
   ]
 
   // Helper function to check if an app has been loaded
@@ -1121,7 +1123,10 @@ export default function Home() {
               background: '#000',
               overflow: 'hidden'
             }}>
-              {loading ? (
+              {currentApp === 'Settings' ? (
+                /* Settings App - Rendered directly */
+                <SettingsApp />
+              ) : loading ? (
                 /* Loading Screen - Dark Magic Cauldron */
                 <div style={{
                   width: '100%',
