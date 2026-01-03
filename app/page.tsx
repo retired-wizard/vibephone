@@ -733,7 +733,7 @@ export default function Home() {
         }
         // Don't vibrate here - vibration happens in useEffect after popup is visible
       }
-    }, 2000) // 2 seconds
+    }, 1000) // 1 second
   }
 
   const handleHomeButtonRelease = () => {
