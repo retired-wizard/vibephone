@@ -13,6 +13,7 @@ interface AppMetadata {
   type: 'default' | 'custom' | 'template'  // App type
   createdAt: number       // Timestamp
   updatedAt?: number      // Optional update timestamp
+  isGenerating?: boolean  // True if app is currently being generated
 }
 
 interface AppCreationRequest {
@@ -207,15 +208,6 @@ export default function Home() {
   const sliderTrackRef = useRef<HTMLDivElement>(null)
   const deviceContainerRef = useRef<HTMLDivElement>(null)
   const fullscreenAttemptRef = useRef<number>(0)
-  // Generate version once per build - uses build timestamp or current time as fallback
-  const [buildVersion] = useState(() => {
-    if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_BUILD_VERSION) {
-      return process.env.NEXT_PUBLIC_BUILD_VERSION
-    }
-    // Generate a version based on timestamp (will be consistent per deployment)
-    const timestamp = Date.now()
-    return `v${timestamp.toString(36).slice(-6)}`
-  })
 
   useEffect(() => {
     // Load custom apps from localStorage
@@ -414,6 +406,70 @@ export default function Home() {
     // Don't clear pending updates - they're tied to specific apps and should persist
     // The update button will only show when viewing the correct app (handled by useEffect)
     
+    // Check if this is a placeholder app that's still generating
+    const generatingApp = allApps.find(app => app.name === appName)
+    if (generatingApp?.isGenerating) {
+      // Show loading screen for generating app
+      setLoading(true)
+      setCurrentApp(appName)
+      setAppHtml(null)
+      setError(null)
+      setLoadingAppName(appName)
+      setLoadingStartTime(Date.now())
+      setElapsedTime(0)
+      
+      // Get current model name
+      const savedModel = localStorage.getItem('selected_llm_model')
+      if (savedModel) {
+        const modelParts = savedModel.split('/')
+        const displayName = modelParts.length > 1 ? modelParts[modelParts.length - 1] : savedModel
+        setCurrentModelName(displayName)
+      } else {
+        setCurrentModelName('gemini-3-flash-preview')
+      }
+      
+      // Show loading messages
+      const getRandomMessage = () => {
+        const randomIndex = Math.floor(Math.random() * loadingMessages.length)
+        return loadingMessages[randomIndex]
+      }
+      setLoadingMessage(getRandomMessage())
+      const messageInterval = setInterval(() => {
+        setLoadingMessage(getRandomMessage())
+      }, 3500)
+      
+      // Poll for completion - check if app generation is done
+      const checkGenerationComplete = setInterval(() => {
+        // Re-read custom apps to check if generation is complete
+        const currentCustomApps = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"apps":[]}').apps || []
+        const app = currentCustomApps.find((a: AppMetadata) => a.id === generatingApp.id)
+        
+        if (!app || !app.isGenerating) {
+          // Generation complete
+          clearInterval(checkGenerationComplete)
+          clearInterval(messageInterval)
+          
+          // Load the completed app
+          if (app) {
+            const cached = localStorage.getItem(`app_${app.name}`)
+            if (cached) {
+              setAppHtml(cached)
+              setCurrentApp(app.name)
+              setLoading(false)
+              setLoadingAppName(null)
+              setError(null)
+              setLoadingStartTime(null)
+              setElapsedTime(0)
+              // Refresh custom apps to get updated state
+              setCustomApps(currentCustomApps)
+            }
+          }
+        }
+      }, 500) // Check every 500ms
+      
+      return
+    }
+    
     // Check cache first - this handles returning to an app that was previously loaded
     const cached = localStorage.getItem(`app_${appName}`)
     if (cached) {
@@ -433,8 +489,8 @@ export default function Home() {
     }
 
     // Check if this is a custom app
-    const clickedApp = allApps.find(app => app.name === appName)
-    const isCustomApp = clickedApp?.type === 'custom'
+    const targetApp = allApps.find(app => app.name === appName)
+    const isCustomApp = targetApp?.type === 'custom'
 
     // Show loading screen and track which app we're loading
     setLoading(true)
@@ -497,8 +553,8 @@ export default function Home() {
       const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 second timeout
       
       // For custom apps, pass description; for default apps, pass appName
-      const requestBody = isCustomApp && clickedApp
-        ? { description: clickedApp.description, aspectRatio, model: savedModel }
+      const requestBody = isCustomApp && targetApp
+        ? { description: targetApp.description, aspectRatio, model: savedModel }
         : { appName, aspectRatio, model: savedModel }
       
       const response = await fetch('/api/generate-app', {
@@ -1029,34 +1085,59 @@ export default function Home() {
       return
     }
     
-    // 2. Set loading state
-    setIsCreatingApp(true)
+    // 2. Generate placeholder app ID
+    const placeholderId = generateAppId()
+    const placeholderName = `Creating... ${Date.now()}`
+    
+    // 3. Create placeholder app immediately
+    const placeholderMetadata: AppMetadata = {
+      id: placeholderId,
+      name: placeholderName,
+      icon: '⏳',
+      gradient: generateAppGradient('creating'),
+      description: request.description,
+      type: 'custom',
+      createdAt: Date.now(),
+      isGenerating: true
+    }
+    
+    // 4. Add placeholder to custom apps immediately
+    setCustomApps(prev => {
+      const updated = [...prev, placeholderMetadata]
+      saveApps(updated)
+      return updated
+    })
+    
+    // 5. Close dialog and reset state immediately (user can navigate away)
+    setShowAddAppDialog(false)
+    setNewAppDescription('')
     setAppCreationError(null)
+    setIsCreatingApp(false)
+    
+    // 6. Start generation in the background
+    // Calculate aspect ratio
+    let aspectRatio = '9:16' // Default fallback
+    const screenElement = document.querySelector('.screen-area') as HTMLElement
+    if (screenElement) {
+      const rect = screenElement.getBoundingClientRect()
+      if (rect.width > 0 && rect.height > 0) {
+        const width = rect.width
+        const height = rect.height
+        const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b)
+        const divisor = gcd(Math.round(width * 1000), Math.round(height * 1000))
+        const aspectWidth = Math.round((width * 1000) / divisor)
+        const aspectHeight = Math.round((height * 1000) / divisor)
+        aspectRatio = `${aspectWidth}:${aspectHeight}`
+      }
+    }
     
     try {
-      // 3. Call API - API will generate name and icon based on description
-      // Calculate aspect ratio
-      let aspectRatio = '9:16' // Default fallback
-      const screenElement = document.querySelector('.screen-area') as HTMLElement
-      if (screenElement) {
-        const rect = screenElement.getBoundingClientRect()
-        if (rect.width > 0 && rect.height > 0) {
-          const width = rect.width
-          const height = rect.height
-          const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b)
-          const divisor = gcd(Math.round(width * 1000), Math.round(height * 1000))
-          const aspectWidth = Math.round((width * 1000) / divisor)
-          const aspectHeight = Math.round((height * 1000) / divisor)
-          aspectRatio = `${aspectWidth}:${aspectHeight}`
-        }
-      }
-      
       const response = await fetch('/api/generate-app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          description: request.description,  // User's description
-          suggestedName: request.suggestedName,  // Optional override
+          description: request.description,
+          suggestedName: request.suggestedName,
           aspectRatio: aspectRatio
         })
       })
@@ -1068,7 +1149,7 @@ export default function Home() {
       
       const data = await response.json()
       
-      // 4. Validate response
+      // 7. Validate response
       if (!data.html || !validateGeneratedHtml(data.html)) {
         throw new Error('Invalid app generated')
       }
@@ -1082,10 +1163,22 @@ export default function Home() {
         throw new Error('Invalid icon generated')
       }
       
-      // 5. Check name uniqueness (handle conflicts)
+      // 8. Check name uniqueness (handle conflicts)
+      // Get current apps from state
+      const currentCustomApps = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"apps":[]}').apps || []
+      const allCurrentApps = [...defaultApps.map(app => ({
+        id: `default_${app.name}`,
+        name: app.name,
+        icon: app.icon,
+        gradient: app.gradient,
+        description: `${app.name} app`,
+        type: 'default' as const,
+        createdAt: 0
+      })), ...currentCustomApps]
+      
       let appName = data.name.trim()
       let attempt = 1
-      while (!isAppNameUnique(appName, allApps)) {
+      while (!isAppNameUnique(appName, allCurrentApps.filter(a => a.name !== placeholderName))) {
         appName = `${data.name.trim()} ${attempt}`
         attempt++
         if (attempt > 100) {
@@ -1093,42 +1186,55 @@ export default function Home() {
         }
       }
       
-      // 6. Create metadata with generated name and icon
-      const metadata: AppMetadata = {
-        id: generateAppId(),
-        name: appName,
-        icon: data.icon,  // Generated by API based on description
-        gradient: generateAppGradient(appName),
-        description: request.description,  // User's original description
-        type: 'custom',
-        createdAt: Date.now()
-      }
-      
-      // 7. Cache app HTML
-      localStorage.setItem(`app_${metadata.name}`, data.html)
+      // 9. Cache app HTML with final name
+      localStorage.setItem(`app_${appName}`, data.html)
       if (data.description) {
-        localStorage.setItem(`app_${metadata.name}_desc`, data.description)
+        localStorage.setItem(`app_${appName}_desc`, data.description)
       }
       
-      // 8. Add to custom apps
+      // 10. Update placeholder with real metadata
       setCustomApps(prev => {
-        const updated = [...prev, metadata]
-        saveApps(updated)  // Persist
+        const updated = prev.map(app => {
+          if (app.id === placeholderId) {
+            return {
+              ...app,
+              name: appName,
+              icon: data.icon,
+              gradient: generateAppGradient(appName),
+              isGenerating: false
+            }
+          }
+          return app
+        })
+        saveApps(updated)
         return updated
       })
       
-      // 9. Close dialog and reset state
-      setShowAddAppDialog(false)
-      setNewAppDescription('')
-      
-      // Optionally navigate to new app
-      // handleAppClick(metadata.name)
+      // 11. If user is viewing the placeholder app, update the cache key they're using
+      if (currentApp === placeholderName) {
+        // The app is currently being viewed, so update the current app name
+        setCurrentApp(appName)
+        // The HTML will be loaded from cache when they refresh or reload
+      }
       
     } catch (error) {
-      console.error('App creation failed:', error)
-      setAppCreationError(error instanceof Error ? error.message : 'Failed to create app')
-    } finally {
-      setIsCreatingApp(false)
+      console.error('App generation failed:', error)
+      
+      // Remove placeholder app on error
+      setCustomApps(prev => {
+        const updated = prev.filter(app => app.id !== placeholderId)
+        saveApps(updated)
+        return updated
+      })
+      
+      // Show error - but don't block the UI since dialog is already closed
+      // User can try again if needed
+      console.error('Failed to generate app:', error instanceof Error ? error.message : 'Unknown error')
+      
+      // If user is viewing the placeholder, show error
+      if (currentApp === placeholderName) {
+        setError(error instanceof Error ? error.message : 'Failed to generate app')
+      }
     }
   }
 
@@ -1350,6 +1456,26 @@ export default function Home() {
     }
   }, [currentApp, appHtml, allApps])
 
+  // Watch for apps that finish generating while user is viewing them
+  useEffect(() => {
+    if (!currentApp || !loading) return
+    
+    // Check if the current app is a generating app that just finished
+    const currentAppData = allApps.find(app => app.name === currentApp)
+    if (currentAppData && !currentAppData.isGenerating && !appHtml) {
+      // App finished generating, load it
+      const cached = localStorage.getItem(`app_${currentAppData.name}`)
+      if (cached) {
+        setAppHtml(cached)
+        setLoading(false)
+        setLoadingAppName(null)
+        setError(null)
+        setLoadingStartTime(null)
+        setElapsedTime(0)
+      }
+    }
+  }, [allApps, currentApp, loading, appHtml])
+
   return (
     <>
       {/* Lock Screen - Only on mobile */}
@@ -1417,13 +1543,83 @@ export default function Home() {
               <span style={{ fontFamily: 'Helvetica Neue', fontSize: '12px' }}>{time}</span>
               <div style={{ 
                 display: 'flex', 
-                gap: '3px', 
+                gap: '6px', 
                 alignItems: 'center',
                 fontFamily: 'Helvetica Neue',
-                fontSize: '12px'
+                fontSize: '12px',
+                height: '12px'
               }}>
-              <span style={{ fontSize: '14px' }}>🔮</span>
-              <span style={{ fontSize: '12px', marginLeft: '2px' }}>66%</span>
+              {/* Magic Signal Bars */}
+              <div style={{ display: 'flex', gap: '2px', alignItems: 'flex-end', height: '12px' }}>
+                {[1, 2, 3, 4].map((bar, index) => (
+                  <div
+                    key={bar}
+                    style={{
+                      width: '3px',
+                      height: `${2 + index * 2}px`,
+                      background: `linear-gradient(180deg, 
+                        rgba(139, 92, 246, 1) 0%, 
+                        rgba(255, 107, 53, 1) 100%)`,
+                      borderRadius: '1px',
+                      boxShadow: `
+                        0 0 3px rgba(139, 92, 246, 0.8),
+                        0 0 6px rgba(255, 107, 53, 0.5)
+                      `
+                    }}
+                  />
+                ))}
+              </div>
+              
+              {/* Magic Battery Indicator */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '2px',
+                position: 'relative'
+              }}>
+                {/* Battery outline */}
+                <div style={{
+                  width: '22px',
+                  height: '11px',
+                  border: '1px solid rgba(255, 255, 255, 0.6)',
+                  borderRadius: '2px',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  boxShadow: '0 0 4px rgba(139, 92, 246, 0.4)'
+                }}>
+                  {/* Battery fill - 42% */}
+                  <div style={{
+                    position: 'absolute',
+                    left: '1px',
+                    top: '1px',
+                    width: 'calc(42% - 2px)',
+                    height: 'calc(100% - 2px)',
+                    background: `linear-gradient(90deg, 
+                      rgba(139, 92, 246, 1) 0%, 
+                      rgba(255, 107, 53, 1) 100%)`,
+                    borderRadius: '1px',
+                    boxShadow: `
+                      inset 0 0 2px rgba(255, 255, 255, 0.3),
+                      0 0 4px rgba(139, 92, 246, 0.6)
+                    `
+                  }} />
+                </div>
+                {/* Battery tip */}
+                <div style={{
+                  width: '2px',
+                  height: '5px',
+                  background: 'rgba(255, 255, 255, 0.6)',
+                  borderRadius: '0 1px 1px 0',
+                  boxShadow: '0 0 3px rgba(139, 92, 246, 0.4)'
+                }} />
+                {/* Battery percentage */}
+                <span style={{ 
+                  fontSize: '11px', 
+                  marginLeft: '2px',
+                  color: 'rgba(255, 255, 255, 0.9)',
+                  textShadow: '0 0 4px rgba(139, 92, 246, 0.5)'
+                }}>42%</span>
+              </div>
             </div>
           </div>
 
@@ -2018,19 +2214,6 @@ export default function Home() {
                   Fullscreen
                 </button>
               )}
-              
-              {/* Version indicator - Bottom right corner */}
-              <div style={{
-                fontSize: '9px',
-                color: 'rgba(255, 255, 255, 0.4)',
-                fontFamily: 'Helvetica Neue',
-                fontWeight: '300',
-                letterSpacing: '0.3px',
-                userSelect: 'none',
-                WebkitUserSelect: 'none'
-              }}>
-                {buildVersion}
-              </div>
             </div>
           </div>
           )}
@@ -2683,9 +2866,11 @@ export default function Home() {
               background: '#1a1a1a',
               borderRadius: '16px',
               padding: '24px',
-              width: '50%',
-              maxWidth: '400px',
-              minWidth: '300px',
+              width: '90%',
+              maxWidth: '335px',
+              minWidth: '280px',
+              maxHeight: '80vh',
+              overflowY: 'auto',
               boxShadow: '0 10px 40px rgba(0, 0, 0, 0.7)',
               border: '1px solid rgba(255, 255, 255, 0.1)'
             }}
@@ -2755,6 +2940,7 @@ export default function Home() {
                   style={{
                     width: '100%',
                     minHeight: '120px',
+                    maxHeight: '200px',
                     padding: '12px',
                     background: '#000',
                     color: '#fff',
@@ -2766,7 +2952,8 @@ export default function Home() {
                     outline: 'none',
                     touchAction: 'manipulation',
                     opacity: isCreatingApp ? 0.6 : 1,
-                    cursor: isCreatingApp ? 'not-allowed' : 'text'
+                    cursor: isCreatingApp ? 'not-allowed' : 'text',
+                    boxSizing: 'border-box'
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Escape' && !isCreatingApp) {
@@ -2776,13 +2963,6 @@ export default function Home() {
                     }
                   }}
                 />
-                <div style={{
-                  fontSize: '11px',
-                  color: 'rgba(255, 255, 255, 0.5)',
-                  marginTop: '6px'
-                }}>
-                  The app name and icon will be automatically generated based on your description.
-                </div>
               </div>
 
               {appCreationError && (

@@ -3,6 +3,42 @@ import { NextResponse } from 'next/server'
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
+// Internet access instructions for apps
+const INTERNET_ACCESS_INSTRUCTIONS = `
+INTERNET ACCESS:
+Apps can fetch data from any public API using the app-proxy endpoint. This enables apps to access news, weather, search, social media APIs, and any other web services.
+
+Usage:
+  fetch('/api/app-proxy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      url: 'https://api.example.com/endpoint',
+      method: 'GET',  // GET, POST, PUT, DELETE
+      headers: {      // Optional custom headers (for API keys, etc.)
+        'Authorization': 'Bearer token'
+      },
+      body: {}        // Optional body for POST/PUT
+    })
+  })
+  .then(res => res.json())
+  .then(result => {
+    const data = result.data  // Actual API response
+    const status = result.status
+    // Use the data in your app
+  })
+  .catch(err => {
+    console.error('Fetch error:', err)
+    // Handle error gracefully with user-friendly message
+  })
+
+Examples:
+- News app: fetch('/api/app-proxy', {...}) with news API URL
+- Weather app: fetch('/api/app-proxy', {...}) with weather API URL
+- Search app: fetch('/api/app-proxy', {...}) with search API URL
+
+Security: The proxy automatically blocks internal networks and dangerous URLs. Rate limits apply to prevent abuse.`
+
 export async function POST(request: Request) {
   const { appName, description, aspectRatio, model } = await request.json()
   
@@ -49,6 +85,8 @@ Technical Requirements:
 - Ensure all buttons have working event handlers
 - Ensure all features function correctly
 - Ensure all content is visible and accessible
+
+${INTERNET_ACCESS_INSTRUCTIONS}
 
 OUTPUT FORMAT (REQUIRED):
 First, provide a detailed natural language description of the COMPLETE rebuilt app (6-10 sentences). This description must describe the ENTIRE app from scratch in comprehensive detail:

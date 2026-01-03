@@ -24,21 +24,28 @@ export default function SettingsApp({ onModelChange }: SettingsAppProps) {
   useEffect(() => {
     // Load current selection from localStorage
     const savedModel = localStorage.getItem('selected_llm_model')
-    if (savedModel) {
-      setSelectedModel(savedModel)
-    }
-
+    
     // Fetch available models
     fetch('/api/list-models')
       .then(res => res.json())
       .then(data => {
         if (data.data && Array.isArray(data.data)) {
           setModels(data.data)
-          // If no saved model, use first one or default
-          if (!savedModel && data.data.length > 0) {
+          
+          // Check if saved model exists in the available models
+          let modelToUse = savedModel
+          const savedModelExists = savedModel ? data.data.some((m: Model) => m.id === savedModel) : false
+          
+          // If no saved model OR saved model doesn't exist in list, use default
+          if (!savedModel || !savedModelExists) {
             const defaultModel = data.data.find((m: Model) => m.id === 'google/gemini-3-flash-preview') || data.data[0]
-            setSelectedModel(defaultModel.id)
+            modelToUse = defaultModel.id
+            
+            // Save the default model to localStorage so it persists
+            localStorage.setItem('selected_llm_model', defaultModel.id)
           }
+          
+          setSelectedModel(modelToUse)
         } else {
           setError('Failed to load models')
         }
@@ -259,20 +266,26 @@ export default function SettingsApp({ onModelChange }: SettingsAppProps) {
                 })}
               </div>
 
-              {/* Info Text */}
-              <div style={{
-                marginTop: '16px',
-                padding: '12px',
-                background: 'rgba(255, 255, 255, 0.03)',
-                borderRadius: '8px',
-                fontSize: '12px',
-                color: 'rgba(255, 255, 255, 0.6)',
-                lineHeight: '1.5'
-              }}>
-                Only models with input and output costs ≤ $3.00 per million tokens are shown. Changes apply to new app generations only.
-              </div>
             </>
           )}
+        </div>
+
+        {/* Version indicator */}
+        <div style={{
+          marginTop: '40px',
+          paddingTop: '20px',
+          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          textAlign: 'center'
+        }}>
+          <div style={{
+            fontSize: '11px',
+            color: 'rgba(255, 255, 255, 0.4)',
+            fontFamily: 'Helvetica Neue',
+            fontWeight: '300',
+            letterSpacing: '0.3px'
+          }}>
+            Version 0.1.0
+          </div>
         </div>
       </div>
     </div>
