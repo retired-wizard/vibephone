@@ -321,6 +321,9 @@ export default function Home() {
         }
       }
       
+      // Get selected model from localStorage
+      const savedModel = localStorage.getItem('selected_llm_model') || 'google/gemini-3-flash-preview'
+      
       // Call API to generate app with timeout
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 second timeout
@@ -328,7 +331,7 @@ export default function Home() {
       const response = await fetch('/api/generate-app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appName, aspectRatio }),
+        body: JSON.stringify({ appName, aspectRatio, model: savedModel }),
         signal: controller.signal
       })
       
@@ -639,13 +642,17 @@ export default function Home() {
     }
 
     try {
+      // Get selected model from localStorage
+      const savedModel = localStorage.getItem('selected_llm_model') || 'google/gemini-3-flash-preview'
+      
       const response = await fetch('/api/fix-app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           appName: appBeingUpdated,
           description: storedDescription,
-          aspectRatio: aspectRatio
+          aspectRatio: aspectRatio,
+          model: savedModel
         }),
       })
 
@@ -713,12 +720,16 @@ export default function Home() {
     })
 
     try {
+      // Get selected model from localStorage
+      const savedModel = localStorage.getItem('selected_llm_model') || 'google/gemini-3-flash-preview'
+      
       const response = await fetch('/api/enhance-app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           appName: appBeingUpdated,
-          currentHtml: currentHtml 
+          currentHtml: currentHtml,
+          model: savedModel
         }),
       })
 
@@ -784,13 +795,17 @@ export default function Home() {
     })
 
     try {
+      // Get selected model from localStorage
+      const savedModel = localStorage.getItem('selected_llm_model') || 'google/gemini-3-flash-preview'
+      
       const response = await fetch('/api/custom-command', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           appName: appBeingUpdated,
           currentHtml: currentHtml,
-          command: commandText
+          command: commandText,
+          model: savedModel
         }),
       })
 
