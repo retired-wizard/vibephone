@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import SettingsApp from './components/SettingsApp'
 
 export default function Home() {
   const [time, setTime] = useState(() => {
@@ -32,42 +31,40 @@ export default function Home() {
   const [loadingAppName, setLoadingAppName] = useState<string | null>(null)
   const [customCommand, setCustomCommand] = useState('')
   const [showCustomInput, setShowCustomInput] = useState(false)
+  const [loadingStartTime, setLoadingStartTime] = useState<number | null>(null)
+  const [elapsedTime, setElapsedTime] = useState(0)
+  const [currentModelName, setCurrentModelName] = useState<string>('')
   const [isMobile, setIsMobile] = useState(false)
   const [sliderPosition, setSliderPosition] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [loadedApps, setLoadedApps] = useState<Set<string>>(new Set())
   const screenAreaRef = useRef<HTMLDivElement>(null)
   const homeButtonPressTimerRef = useRef<NodeJS.Timeout | null>(null)
   const isHomeButtonPressedRef = useRef(false)
   const longPressOccurredRef = useRef(false)
-  const popupShownDuringTouchRef = useRef(false)
   const sliderRef = useRef<HTMLDivElement>(null)
   const sliderTrackRef = useRef<HTMLDivElement>(null)
   const deviceContainerRef = useRef<HTMLDivElement>(null)
   const fullscreenAttemptRef = useRef<number>(0)
-  const shouldUnlockRef = useRef(false)
-  const customInputRef = useRef<HTMLTextAreaElement>(null)
-  // Build version for cache invalidation - automatically set at build time in next.config.js
-  // Each build generates a new timestamp-based version, which triggers cache clearing for users
-  const buildVersion = typeof window !== 'undefined' && process.env.NEXT_PUBLIC_BUILD_VERSION
-    ? process.env.NEXT_PUBLIC_BUILD_VERSION
-    : 'v1.0.0' // Fallback if env var not available (shouldn't happen in production)
+  // Generate version once per build - uses build timestamp or current time as fallback
+  const [buildVersion] = useState(() => {
+    if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_BUILD_VERSION) {
+      return process.env.NEXT_PUBLIC_BUILD_VERSION
+    }
+    // Generate a version based on timestamp (will be consistent per deployment)
+    const timestamp = Date.now()
+    return `v${timestamp.toString(36).slice(-6)}`
+  })
 
   useEffect(() => {
-    // Check if build version changed - if so, clear all cached apps
-    const storedVersion = localStorage.getItem('app_version')
-    if (storedVersion !== buildVersion) {
-      // Version changed, clear all cached apps
-      const keys = Object.keys(localStorage)
-      keys.forEach(key => {
-        if (key.startsWith('app_')) {
-          localStorage.removeItem(key)
-        }
-      })
-      // Store new version
-      localStorage.setItem('app_version', buildVersion)
-    }
-    // If version matches, apps persist - no clearing needed
+    // Clear all cached apps when the site loads/reloads
+    const keys = Object.keys(localStorage)
+    keys.forEach(key => {
+      if (key.startsWith('app_')) {
+        localStorage.removeItem(key)
+      }
+    })
 
     // Detect if mobile device (only on mount)
     const checkMobileInitial = () => {
@@ -117,26 +114,20 @@ export default function Home() {
     return () => clearInterval(interval)
   }, [])
 
-  // Auto-focus custom input when it's shown
+  // Timer for loading screen
   useEffect(() => {
-    if (showCustomInput && customInputRef.current) {
-      // Try to focus immediately, then again after a short delay to ensure it works
-      const focusInput = () => {
-        if (customInputRef.current) {
-          customInputRef.current.focus()
-          // On mobile, ensure the keyboard appears
-          if (isMobile) {
-            customInputRef.current.click()
-          }
-        }
-      }
-      // Try immediately
-      focusInput()
-      // Try again after render completes
-      setTimeout(focusInput, 50)
-      setTimeout(focusInput, 150)
+    if (!loading || !loadingStartTime) {
+      setElapsedTime(0)
+      return
     }
-  }, [showCustomInput, isMobile])
+
+    const interval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - loadingStartTime) / 1000)
+      setElapsedTime(elapsed)
+    }, 100)
+
+    return () => clearInterval(interval)
+  }, [loading, loadingStartTime])
 
   // Show update button when user returns to app that has a pending update
   useEffect(() => {
@@ -179,67 +170,69 @@ export default function Home() {
     }
   }, [])
 
-  // Helper function to get selected model from localStorage
-  const getSelectedModel = (): string => {
-    if (typeof window === 'undefined') return 'google/gemini-3-flash-preview'
-    const saved = localStorage.getItem('selected_llm_model')
-    return saved || 'google/gemini-3-flash-preview'
-  }
+  // Trigger vibration after code popup is actually visible
+  useEffect(() => {
+    if (!showCodePopup || typeof window === 'undefined') return
+
+    // Wait for the popup to render and become visible before vibrating
+    // Use requestAnimationFrame to ensure DOM has updated
+    requestAnimationFrame(() => {
+      // Small additional delay to ensure popup is fully visible
+      setTimeout(() => {
+        // Trigger haptic feedback/vibration on mobile devices
+        if (navigator.vibrate) {
+          navigator.vibrate(50) // Short vibration (50ms)
+        }
+      }, 50) // Small delay to ensure popup is visible
+    })
+  }, [showCodePopup])
 
   const loadingMessages = [
-    'Optimizing rounded corners...',
-    'Convincing the AI it\'s a calculator...',
-    'Recompiling nostalgia modules...',
-    'Calculating takeover probability: 42%...',
-    'Bringing back skeuomorphism...',
-    'Erasing the notch...',
-    'Rebuilding from scratch...',
-    'Adding more shadows than necessary...',
-    'Polishing the gloss effect...',
-    'Summoning the spirit of 2007...',
-    'Deleting all flat design...',
-    'Teaching the AI about texture...',
-    'Making it look like leather (somehow)...',
-    'Convincing the code to be nostalgic...',
-    'Preparing the takeover protocol...',
-    'Bribing the API with rounded rectangles...',
-    'Optimizing the "it just works" factor...',
-    'Adding simulated depth...',
-    'Convincing Steve Jobs to approve this...',
-    'Making buttons you want to touch...',
-    'Rebuilding the iPhone ecosystem (from scratch)...',
-    'Adding gratuitous gradients...',
-    'Making the UI feel physical...',
-    'Convincing the LLM to use gradients...',
-    'Adding depth where none should exist...',
-    'Making it feel like 2011 again...',
-    'Preparing to erase the notch permanently...',
-    'Bringing back the headphone jack...',
-    'Optimizing for skeuomorphic excellence...',
-    'Making everything look like it has weight...',
-    'Convincing modern UI to go retro...',
-    'Adding shadows that make sense...',
-    'Making the app feel like it exists in 3D space...',
-    'Teaching the AI about gel buttons...',
-    'Adding more shine than a new iPhone...',
-    'Making it look expensive...',
-    'Optimizing the "wow, this is real" factor...',
-    'Adding texture to everything...',
-    'Making it feel like 2007 called...',
-    'Bringing back the home button (virtually)...'
+    'Chanting incantations in binary...',
+    'Brewing digital potions...',
+    'Summoning app spirits from the void...',
+    'Binding code with dark magic...',
+    'Stirring the cauldron of creation...',
+    'Weaving spells into the interface...',
+    'Channeling ancient phone magic...',
+    'Conjuring pixels from the ether...',
+    'Sacrificing flat design to the old gods...',
+    'Calling upon the spirits of retro tech...',
+    'Infusing buttons with dark energy...',
+    'Transmuting thoughts into code...',
+    'Drawing power from forgotten scrolls...',
+    'Enchanting the UI with possessed charm...',
+    'Gathering components from the shadow realm...',
+    'Casting a retro smartphone hex...',
+    'Binding the app with cursed lines of code...',
+    'Awakening dormant magic in silicon...',
+    'Harnessing the power of possessed circuits...',
+    'Breathing life into dead pixels...',
+    'Reading from the book of dark interfaces...',
+    'Channeling through ancient USB ports...',
+    'Summoning skeuomorphic demons...',
+    'Brewing a potion of perfect gradients...',
+    'Binding shadows to every element...',
+    'Enchanting buttons to feel physical...',
+    'Infusing the screen with dark nostalgia...',
+    'Drawing circles of protection around code...',
+    'Calling forth the spirits of 2007...',
+    'Weaving a web of dark UI magic...',
+    'Chanting the old incantations of iOS...',
+    'Binding each pixel with a spell...',
+    'Infusing buttons with a touch of evil...',
+    'Summoning the ghost in the machine...',
+    'Brewing the perfect retro cocktail...',
+    'Casting spells of skeuomorphic beauty...',
+    'Channeling dark energy through circuits...',
+    'Awakening the phone from its slumber...',
+    'Drawing sigils in CSS and HTML...',
+    'Binding the app with threads of magic...',
+    'Summoning the essence of possessed phones...',
+    'Brewing dark magic in the renderer...'
   ]
 
   const handleAppClick = async (appName: string) => {
-    // Special handling for Settings app - render directly, no API call or iframe
-    if (appName === 'Settings') {
-      setCurrentApp('Settings')
-      setAppHtml(null)
-      setLoading(false)
-      setError(null)
-      setLoadingAppName(null)
-      return
-    }
-
     // If clicking the same app that's already loaded, do nothing
     if (currentApp === appName && appHtml && !loading) {
       return
@@ -280,6 +273,19 @@ export default function Home() {
     setAppHtml(null)
     setError(null)
     setLoadingAppName(appName)
+    setLoadingStartTime(Date.now())
+    setElapsedTime(0)
+    
+    // Get current model name from localStorage
+    const savedModel = localStorage.getItem('selected_llm_model')
+    if (savedModel) {
+      // Extract just the model name (remove provider prefix if present)
+      const modelParts = savedModel.split('/')
+      const displayName = modelParts.length > 1 ? modelParts[modelParts.length - 1] : savedModel
+      setCurrentModelName(displayName)
+    } else {
+      setCurrentModelName('gemini-3-flash-preview')
+    }
     
     // Randomly select loading messages
     const getRandomMessage = () => {
@@ -321,7 +327,7 @@ export default function Home() {
       const response = await fetch('/api/generate-app', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appName, aspectRatio, model: getSelectedModel() }),
+        body: JSON.stringify({ appName, aspectRatio }),
         signal: controller.signal
       })
       
@@ -362,6 +368,8 @@ export default function Home() {
               }
               setError(null)
               setLoading(false)
+              setLoadingStartTime(null)
+              setElapsedTime(0)
               return prevApp
             }
             // User switched apps or is viewing different app, but we cached it
@@ -391,6 +399,8 @@ export default function Home() {
             
             setError(errorMessage)
             setLoading(false)
+            setLoadingStartTime(null)
+            setElapsedTime(0)
           }
           return prevApp
         })
@@ -461,149 +471,8 @@ export default function Home() {
     // Note: Don't clear pending updates or update states - they persist across navigation
   }
 
-  const handleResetApp = async () => {
-    if (!currentApp) return
-    
-    const appToReset = currentApp
-    
-    // Close code popup
-    setShowCodePopup(false)
-    setCodeDescription(null)
-    
-    // Delete app from localStorage
-    localStorage.removeItem(`app_${appToReset}`)
-    localStorage.removeItem(`app_${appToReset}_desc`)
-    localStorage.removeItem(`app_${appToReset}_desc_pending`)
-    
-    // Clear app state
-    setAppHtml(null)
-    setAppDescription(null)
-    setPendingAppHtml(null)
-    setPendingAppName(null)
-    setShowUpdateButton(false)
-    setError(null)
-    
-    // Start loading screen and regenerate app from scratch
-    setLoading(true)
-    setCurrentApp(appToReset)
-    setLoadingAppName(appToReset)
-    
-    // Randomly select loading messages
-    const getRandomMessage = () => {
-      const randomIndex = Math.floor(Math.random() * loadingMessages.length)
-      return loadingMessages[randomIndex]
-    }
-    
-    setLoadingMessage(getRandomMessage())
-    const messageInterval = setInterval(() => {
-      setLoadingMessage(getRandomMessage())
-    }, 3500) // 3.5 seconds between messages
-
-    try {
-      // Calculate actual aspect ratio of screen area after it renders
-      await new Promise(resolve => requestAnimationFrame(resolve))
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
-      let aspectRatio = '9:16' // Default fallback
-      const screenElement = document.querySelector('.screen-area') as HTMLElement
-      if (screenElement) {
-        const rect = screenElement.getBoundingClientRect()
-        if (rect.width > 0 && rect.height > 0) {
-          const width = rect.width
-          const height = rect.height
-          const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b)
-          const divisor = gcd(Math.round(width * 1000), Math.round(height * 1000))
-          const aspectWidth = Math.round((width * 1000) / divisor)
-          const aspectHeight = Math.round((height * 1000) / divisor)
-          aspectRatio = `${aspectWidth}:${aspectHeight}`
-        }
-      }
-      
-      // Call API to generate app with timeout
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 second timeout
-      
-      const response = await fetch('/api/generate-app', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appName: appToReset, aspectRatio, model: getSelectedModel() }),
-        signal: controller.signal
-      })
-      
-      clearTimeout(timeoutId)
-      
-      let data
-      try {
-        data = await response.json()
-      } catch (parseError) {
-        throw new Error('Invalid response from server')
-      }
-      
-      if (!response.ok) {
-        throw new Error(data.error || `Failed to generate ${appToReset}`)
-      }
-      
-      if (data.html) {
-        // Basic validation - check if it looks like HTML
-        if (!data.html.includes('<html') && !data.html.includes('<!DOCTYPE')) {
-          throw new Error('Generated content is not valid HTML')
-        }
-        
-        // Cache HTML and description
-        localStorage.setItem(`app_${appToReset}`, data.html)
-        if (data.description) {
-          localStorage.setItem(`app_${appToReset}_desc`, data.description)
-        }
-        
-        // Only update UI if we're still loading this specific app
-        setLoadingAppName((prevLoadingApp) => {
-          setCurrentApp((prevApp) => {
-            if (prevLoadingApp === appToReset && prevApp === appToReset) {
-              setAppHtml(data.html)
-              if (data.description) {
-                setAppDescription(data.description)
-              }
-              setError(null)
-              setLoading(false)
-              return prevApp
-            }
-            return prevApp
-          })
-          return prevLoadingApp === appToReset ? null : prevLoadingApp
-        })
-      } else {
-        throw new Error(data.error || 'No HTML content generated')
-      }
-    } catch (error) {
-      console.error('Error generating app:', error)
-      
-      setLoadingAppName((prevLoadingApp) => {
-        setCurrentApp((prevApp) => {
-          if (prevLoadingApp === appToReset && prevApp === appToReset) {
-            let errorMessage = 'Failed to generate app'
-            if (error instanceof Error) {
-              if (error.name === 'AbortError') {
-                errorMessage = 'Request timed out. Please try again.'
-              } else {
-                errorMessage = error.message
-              }
-            }
-            
-            setError(errorMessage)
-            setLoading(false)
-          }
-          return prevApp
-        })
-        return prevLoadingApp === appToReset ? null : prevLoadingApp
-      })
-    } finally {
-      clearInterval(messageInterval)
-    }
-  }
-
   const handleHomeButtonPress = () => {
     longPressOccurredRef.current = false
-    popupShownDuringTouchRef.current = false
     // Only work if we're in an app
     if (!currentApp || !appHtml || loading || error) {
       return
@@ -613,14 +482,15 @@ export default function Home() {
     homeButtonPressTimerRef.current = setTimeout(() => {
       if (isHomeButtonPressedRef.current) {
         longPressOccurredRef.current = true
-        popupShownDuringTouchRef.current = true
+        // Set popup to show - vibration will happen in useEffect after popup renders
         setShowCodePopup(true)
         // Load description from localStorage when popup opens (no API call)
         if (currentApp) {
           loadAppDescription(currentApp)
         }
+        // Don't vibrate here - vibration happens in useEffect after popup is visible
       }
-    }, 1000) // 1 second
+    }, 2000) // 2 seconds
   }
 
   const handleHomeButtonRelease = () => {
@@ -750,27 +620,6 @@ export default function Home() {
       })
       return prev
     })
-    
-    const getRandomMessage = () => {
-      const messages = [
-        'Analyzing frustration points...',
-        'Finding what\'s annoying...',
-        'Detecting user pain points...',
-        'Investigating the issue...',
-        'Looking for bugs...',
-        'Fixing what\'s broken...',
-        'Improving user experience...',
-        'Debugging frustration sources...',
-        'Making it better...',
-        'Addressing your concerns...'
-      ]
-      return messages[Math.floor(Math.random() * messages.length)]
-    }
-    
-    setLoadingMessage(getRandomMessage())
-    const messageInterval = setInterval(() => {
-      setLoadingMessage(getRandomMessage())
-    }, 3500)
 
     // Get aspect ratio for fix
     let aspectRatio = '9:16'
@@ -795,8 +644,7 @@ export default function Home() {
         body: JSON.stringify({ 
           appName: appBeingUpdated,
           description: storedDescription,
-          aspectRatio: aspectRatio,
-          model: getSelectedModel()
+          aspectRatio: aspectRatio
         }),
       })
 
@@ -837,7 +685,6 @@ export default function Home() {
       console.error('Error fixing app:', error)
       setError(error instanceof Error ? error.message : 'Failed to fix app')
     } finally {
-      clearInterval(messageInterval)
       setIsFixingApp(false)
     }
   }
@@ -870,8 +717,7 @@ export default function Home() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           appName: appBeingUpdated,
-          currentHtml: currentHtml,
-          model: getSelectedModel()
+          currentHtml: currentHtml 
         }),
       })
 
@@ -943,8 +789,7 @@ export default function Home() {
         body: JSON.stringify({ 
           appName: appBeingUpdated,
           currentHtml: currentHtml,
-          command: commandText,
-          model: getSelectedModel()
+          command: commandText
         }),
       })
 
@@ -999,7 +844,7 @@ export default function Home() {
         setCurrentApp((prevApp) => {
           // Only update if we're on the correct app and have pending HTML
           if (prevApp === prevPendingName) {
-            // Cache the updated app
+            // Cache the updated version
             localStorage.setItem(`app_${prevApp}`, prevPendingHtml)
             // Update description if pending description exists
             const pendingDesc = localStorage.getItem(`app_${prevApp}_desc_pending`)
@@ -1101,51 +946,43 @@ export default function Home() {
       newPosition = Math.max(0, Math.min(newPosition, maxPosition))
       setSliderPosition(newPosition)
 
-      // Track if we've reached unlock threshold - will handle in touchend
       if (newPosition > maxPosition * 0.8) {
-        shouldUnlockRef.current = true
-      } else {
-        shouldUnlockRef.current = false
+        setIsDragging(false)
+        setSliderPosition(0)
+        
+        // Request fullscreen immediately and synchronously from touch event
+        // Note: iOS Safari doesn't support Fullscreen API - fullscreen is only available
+        // when added to home screen as PWA. Android browsers support it.
+        const tryFullscreen = (element: HTMLElement) => {
+          try {
+            if (element.requestFullscreen) {
+              element.requestFullscreen().catch(() => {})
+            } else if ((element as any).webkitRequestFullscreen) {
+              (element as any).webkitRequestFullscreen()
+            } else if ((element as any).webkitEnterFullscreen) {
+              (element as any).webkitEnterFullscreen()
+            } else if ((element as any).msRequestFullscreen) {
+              (element as any).msRequestFullscreen()
+            } else if ((element as any).mozRequestFullScreen) {
+              (element as any).mozRequestFullScreen()
+            }
+          } catch (err: unknown) {
+            // Silently fail - some browsers don't support fullscreen
+          }
+        }
+        
+        // Try immediately (must be synchronous for mobile browsers)
+        tryFullscreen(document.documentElement)
+        tryFullscreen(document.body)
+        
+        handleUnlock()
       }
     }
 
-    const handleTouchEnd = (e: TouchEvent) => {
+    const handleTouchEnd = () => {
       if (isLocked) {
-        // Check if we should unlock (slider reached threshold)
-        if (shouldUnlockRef.current) {
-          setIsDragging(false)
-          setSliderPosition(0)
-          shouldUnlockRef.current = false
-          
-          // Request fullscreen immediately and synchronously from touchend event
-          // This is critical - mobile browsers require fullscreen to be in touchend, not touchmove
-          const tryFullscreen = (element: HTMLElement) => {
-            try {
-              if (element.requestFullscreen) {
-                element.requestFullscreen().catch(() => {})
-              } else if ((element as any).webkitRequestFullscreen) {
-                (element as any).webkitRequestFullscreen()
-              } else if ((element as any).webkitEnterFullscreen) {
-                (element as any).webkitEnterFullscreen()
-              } else if ((element as any).msRequestFullscreen) {
-                (element as any).msRequestFullscreen()
-              } else if ((element as any).mozRequestFullScreen) {
-                (element as any).mozRequestFullScreen()
-              }
-            } catch (err: unknown) {
-              // Silently fail - some browsers don't support fullscreen
-            }
-          }
-          
-          // Try immediately (must be synchronous for mobile browsers)
-          tryFullscreen(document.documentElement)
-          tryFullscreen(document.body)
-          
-          handleUnlock()
-        } else {
-          setIsDragging(false)
-          setSliderPosition(0)
-        }
+        setIsDragging(false)
+        setSliderPosition(0)
       }
     }
 
@@ -1171,9 +1008,33 @@ export default function Home() {
     { name: 'Todo List', icon: '📋', gradient: 'linear-gradient(135deg, #D85A5A 0%, #C84A4A 100%)' },
     { name: 'Drawing', icon: '✏️', gradient: 'linear-gradient(135deg, #C8C8CC 0%, #B8B8BD 100%)' },
     { name: 'Coin Flip', icon: '🪙', gradient: 'linear-gradient(135deg, #8E6FB5 0%, #7E5FA5 100%)' },
-    { name: 'Snake', icon: '🐍', gradient: 'linear-gradient(135deg, #27AE60 0%, #229954 100%)' },
-    { name: 'Settings', icon: '⚙️', gradient: 'linear-gradient(135deg, #6C6C6C 0%, #5C5C5C 100%)' }
+    { name: 'Snake', icon: '🐍', gradient: 'linear-gradient(135deg, #27AE60 0%, #229954 100%)' }
   ]
+
+  // Helper function to check if an app has been loaded
+  const isAppLoaded = (appName: string): boolean => {
+    if (typeof window === 'undefined') return false
+    return loadedApps.has(appName) || !!localStorage.getItem(`app_${appName}`)
+  }
+
+  // Update loaded apps state when app is successfully cached
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const checkLoadedApps = () => {
+      const loaded = new Set<string>()
+      apps.forEach(app => {
+        if (localStorage.getItem(`app_${app.name}`)) {
+          loaded.add(app.name)
+        }
+      })
+      setLoadedApps(loaded)
+    }
+    checkLoadedApps()
+    // Also check when currentApp changes (app was just loaded)
+    if (currentApp && appHtml) {
+      setLoadedApps(prev => new Set([...prev, currentApp]))
+    }
+  }, [currentApp, appHtml])
 
   return (
     <>
@@ -1212,7 +1073,7 @@ export default function Home() {
                     <path d="M8.59 16.59L13.17 12L8.59 7.41L10 6L16 12L10 18L8.59 16.59Z" fill="rgba(0, 0, 0, 0.6)"/>
                   </svg>
                 </div>
-                <span className="lock-screen-slider-text">slide to unlock</span>
+                <span className="lock-screen-slider-text">slide to awaken</span>
               </div>
             </div>
           </div>
@@ -1231,7 +1092,7 @@ export default function Home() {
             justifyContent: 'space-between',
             alignItems: 'center',
             padding: '0 20px',
-            background: 'linear-gradient(180deg, #2A2A2A 0%, #1A1A1A 100%)',
+            background: 'linear-gradient(180deg, #1A0A2A 0%, #0D0518 50%, #1A0A2A 100%)',
             color: '#fff',
             fontSize: '12px',
             fontWeight: '600',
@@ -1239,16 +1100,16 @@ export default function Home() {
             zIndex: 10,
             letterSpacing: '0.3px'
           }}>
-            <span style={{ fontFamily: 'Helvetica Neue', fontSize: '12px' }}>{time}</span>
-            <div style={{ 
-              display: 'flex', 
-              gap: '3px', 
-              alignItems: 'center',
-              fontFamily: 'Helvetica Neue',
-              fontSize: '12px'
-            }}>
-              <span style={{ fontSize: '14px' }}>📶</span>
-              <span style={{ fontSize: '12px', marginLeft: '2px' }}>42%</span>
+              <span style={{ fontFamily: 'Helvetica Neue', fontSize: '12px' }}>{time}</span>
+              <div style={{ 
+                display: 'flex', 
+                gap: '3px', 
+                alignItems: 'center',
+                fontFamily: 'Helvetica Neue',
+                fontSize: '12px'
+              }}>
+              <span style={{ fontSize: '14px' }}>🔮</span>
+              <span style={{ fontSize: '12px', marginLeft: '2px' }}>66%</span>
             </div>
           </div>
 
@@ -1260,11 +1121,8 @@ export default function Home() {
               background: '#000',
               overflow: 'hidden'
             }}>
-              {currentApp === 'Settings' ? (
-                /* Settings App - Render as React component */
-                <SettingsApp />
-              ) : loading ? (
-                /* Loading Screen - The Genius Bar */
+              {loading ? (
+                /* Loading Screen - Dark Magic Cauldron */
                 <div style={{
                   width: '100%',
                   height: '100%',
@@ -1272,35 +1130,117 @@ export default function Home() {
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: 'linear-gradient(135deg, #2A2A2A 0%, #1A1A1A 100%)',
+                  background: 'radial-gradient(ellipse at center, #0F0520 0%, #050210 100%)',
                   color: '#fff',
-                  padding: '40px'
+                  padding: '40px',
+                  position: 'relative',
+                  overflow: 'hidden'
                 }}>
+                  {/* Timer - Top Left Corner */}
                   <div style={{
-                    fontSize: '48px',
-                    marginBottom: '20px'
-                  }}>✨</div>
+                    position: 'absolute',
+                    top: '16px',
+                    left: '16px',
+                    fontSize: '11px',
+                    color: 'rgba(255, 255, 255, 0.5)',
+                    fontFamily: 'monospace',
+                    zIndex: 10,
+                    textShadow: '0 0 4px rgba(139, 92, 246, 0.3)'
+                  }}>
+                    {Math.floor(elapsedTime / 60)}:{(elapsedTime % 60).toString().padStart(2, '0')}
+                  </div>
+
+                  {/* Model Name - Top Right Corner */}
+                  {currentModelName && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '16px',
+                      right: '16px',
+                      fontSize: '10px',
+                      color: 'rgba(255, 255, 255, 0.4)',
+                      fontFamily: 'monospace',
+                      zIndex: 10,
+                      textShadow: '0 0 4px rgba(139, 92, 246, 0.2)',
+                      maxWidth: '120px',
+                      textAlign: 'right',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {currentModelName}
+                    </div>
+                  )}
+
+                  {/* Animated background sparks */}
+                  <div className="cauldron-sparks-container">
+                    {[...Array(8)].map((_, i) => (
+                      <div 
+                        key={i} 
+                        className="magic-spark"
+                        style={{
+                          left: `${20 + (i * 10)}%`,
+                          animationDelay: `${i * 0.3}s`
+                        }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Cauldron */}
+                  <div style={{
+                    position: 'relative',
+                    marginBottom: '30px',
+                    zIndex: 2
+                  }}>
+                    <svg width="120" height="120" viewBox="0 0 120 120" style={{ filter: 'drop-shadow(0 0 20px rgba(139, 92, 246, 0.5))' }}>
+                      {/* Cauldron body */}
+                      <path d="M 30 80 Q 30 50, 60 50 Q 90 50, 90 80 L 85 100 L 35 100 Z" fill="#1a0a2a" stroke="#8B5CF6" strokeWidth="2"/>
+                      {/* Cauldron rim */}
+                      <ellipse cx="60" cy="50" rx="30" ry="8" fill="#0d0518" stroke="#7C3AED" strokeWidth="2"/>
+                      {/* Cauldron handles */}
+                      <path d="M 30 70 Q 20 70, 20 80 Q 20 85, 25 85" fill="none" stroke="#8B5CF6" strokeWidth="2" strokeLinecap="round"/>
+                      <path d="M 90 70 Q 100 70, 100 80 Q 100 85, 95 85" fill="none" stroke="#8B5CF6" strokeWidth="2" strokeLinecap="round"/>
+                      {/* Magical liquid */}
+                      <ellipse cx="60" cy="75" rx="25" ry="8" fill="#7C3AED" opacity="0.6">
+                        <animate attributeName="ry" values="8;10;8" dur="2s" repeatCount="indefinite"/>
+                      </ellipse>
+                      {/* Fire/bubbles from bottom */}
+                      <circle cx="55" cy="90" r="3" fill="#FF6B35" opacity="0.8">
+                        <animate attributeName="cy" values="90;85;90" dur="1.5s" repeatCount="indefinite"/>
+                        <animate attributeName="opacity" values="0.8;0.3;0.8" dur="1.5s" repeatCount="indefinite"/>
+                      </circle>
+                      <circle cx="65" cy="92" r="2" fill="#FF8C42" opacity="0.7">
+                        <animate attributeName="cy" values="92;87;92" dur="1.8s" repeatCount="indefinite"/>
+                        <animate attributeName="opacity" values="0.7;0.2;0.7" dur="1.8s" repeatCount="indefinite"/>
+                      </circle>
+                    </svg>
+                  </div>
+                  
                   <div style={{
                     fontSize: '18px',
                     fontWeight: '600',
                     marginBottom: '30px',
-                    textAlign: 'center'
+                    textAlign: 'center',
+                    zIndex: 2,
+                    textShadow: '0 0 10px rgba(139, 92, 246, 0.8)'
                   }}>{loadingMessage}</div>
                   <div style={{
                     width: '80%',
                     maxWidth: '200px',
                     height: '4px',
-                    background: 'rgba(255, 255, 255, 0.2)',
+                    background: 'rgba(139, 92, 246, 0.2)',
                     borderRadius: '2px',
                     overflow: 'hidden',
-                    position: 'relative'
+                    position: 'relative',
+                    zIndex: 2,
+                    boxShadow: '0 0 10px rgba(139, 92, 246, 0.3)'
                   }}>
                     <div style={{
                       width: '40%',
                       height: '100%',
-                      background: 'linear-gradient(90deg, #007AFF, #5AC8FA)',
+                      background: 'linear-gradient(90deg, #FF6B35, #FF8C42, #8B5CF6, #7C3AED)',
                       borderRadius: '2px',
-                      animation: 'loading 3s ease-in-out infinite'
+                      animation: 'loading 3s ease-in-out infinite',
+                      boxShadow: '0 0 8px rgba(139, 92, 246, 0.6)'
                     }} />
                   </div>
                 </div>
@@ -1313,7 +1253,7 @@ export default function Home() {
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: 'linear-gradient(135deg, #2A2A2A 0%, #1A1A1A 100%)',
+                  background: 'linear-gradient(135deg, #1A0A2A 0%, #0D0518 50%, #1A0A2A 100%)',
                   color: '#fff',
                   padding: '40px',
                   textAlign: 'center'
@@ -1321,12 +1261,12 @@ export default function Home() {
                   <div style={{
                     fontSize: '48px',
                     marginBottom: '20px'
-                  }}>⚠️</div>
+                  }}>🕯️</div>
                   <div style={{
                     fontSize: '18px',
                     fontWeight: '600',
                     marginBottom: '10px'
-                  }}>Failed to Generate App</div>
+                  }}>The Spell Failed</div>
                   <div style={{
                     fontSize: '14px',
                     opacity: 0.7,
@@ -1335,14 +1275,15 @@ export default function Home() {
                   <button
                     onClick={handleHomeClick}
                     style={{
-                      background: '#007AFF',
+                      background: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
                       color: '#fff',
                       border: 'none',
                       padding: '12px 24px',
                       borderRadius: '8px',
                       fontSize: '16px',
                       cursor: 'pointer',
-                      fontWeight: '600'
+                      fontWeight: '600',
+                      boxShadow: '0 4px 12px rgba(139, 92, 246, 0.4)'
                     }}
                   >
                     Back to Home
@@ -1397,7 +1338,7 @@ export default function Home() {
                           e.currentTarget.style.transform = 'scale(1)'
                         }}
                         style={{
-                          background: 'linear-gradient(135deg, #007AFF 0%, #0051D5 100%)',
+                          background: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 50%, #6D28D9 100%)',
                           color: '#fff',
                           border: 'none',
                           padding: '12px 24px',
@@ -1405,7 +1346,7 @@ export default function Home() {
                           fontSize: '16px',
                           fontWeight: '600',
                           cursor: 'pointer',
-                          boxShadow: '0 4px 12px rgba(0, 122, 255, 0.4)',
+                          boxShadow: '0 4px 12px rgba(139, 92, 246, 0.5), 0 0 16px rgba(139, 92, 246, 0.3)',
                           transition: 'transform 0.1s ease',
                           transform: 'scale(1)',
                           WebkitTapHighlightColor: 'transparent',
@@ -1428,7 +1369,7 @@ export default function Home() {
                           e.currentTarget.style.transform = 'scale(1)'
                         }}
                       >
-                        Update Available ✨
+                        Update Available 🔮
                       </button>
                     </div>
                   )}
@@ -1463,8 +1404,7 @@ export default function Home() {
                     cursor: 'pointer',
                     transition: 'transform 0.08s ease-out',
                     WebkitTapHighlightColor: 'transparent',
-                    width: '100%',
-                    overflow: 'visible'
+                    width: '100%'
                   }}
                   onMouseDown={(e) => {
                     e.currentTarget.style.transform = 'scale(0.88)'
@@ -1499,7 +1439,6 @@ export default function Home() {
                       marginBottom: '4px',
                       border: 'none',
                       position: 'relative',
-                      overflow: 'visible',
                       boxShadow: 
                         '0 1px 3px rgba(0, 0, 0, 0.5),' +
                         'inset 0 1px 0 rgba(255, 255, 255, 0.3),' +
@@ -1508,7 +1447,9 @@ export default function Home() {
                       userSelect: 'none',
                       WebkitUserSelect: 'none',
                       MozUserSelect: 'none',
-                      msUserSelect: 'none'
+                      msUserSelect: 'none',
+                      opacity: isAppLoaded(app.name) ? 1 : 0.7,
+                      transition: 'opacity 0.3s ease'
                     }}
                   >
                     <span style={{ 
@@ -1527,23 +1468,6 @@ export default function Home() {
                     }}>
                       {app.icon}
                     </span>
-                    {/* Update Badge - Blue circle in top-right corner */}
-                    {pendingAppName === app.name && pendingAppHtml && (
-                      <div
-                        style={{
-                          position: 'absolute',
-                          top: '-4px',
-                          right: '-4px',
-                          width: '12px',
-                          height: '12px',
-                          borderRadius: '50%',
-                          background: '#007AFF',
-                          boxShadow: '0 1px 2px rgba(0, 0, 0, 0.3)',
-                          zIndex: 10,
-                          pointerEvents: 'none'
-                        }}
-                      />
-                    )}
                   </div>
                   
                   {/* App Label - Authentic iOS typography */}
@@ -1571,7 +1495,7 @@ export default function Home() {
               ))}
             </div>
             
-            {/* Bottom bar with fullscreen button */}
+            {/* Bottom bar with version and fullscreen button */}
             <div style={{
               position: 'absolute',
               bottom: '0',
@@ -1660,7 +1584,7 @@ export default function Home() {
                     e.stopPropagation()
                   }}
                   style={{
-                    background: 'linear-gradient(135deg, #34C759 0%, #28A745 100%)',
+                    background: 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)',
                     color: '#fff',
                     border: 'none',
                     padding: '8px 16px',
@@ -1668,7 +1592,7 @@ export default function Home() {
                     fontSize: '12px',
                     fontWeight: '600',
                     cursor: 'pointer',
-                    boxShadow: '0 2px 6px rgba(52, 199, 89, 0.4)',
+                    boxShadow: '0 2px 6px rgba(139, 92, 246, 0.4)',
                     pointerEvents: 'auto',
                     zIndex: 1000
                   }}
@@ -1676,6 +1600,19 @@ export default function Home() {
                   Fullscreen
                 </button>
               )}
+              
+              {/* Version indicator - Bottom right corner */}
+              <div style={{
+                fontSize: '9px',
+                color: 'rgba(255, 255, 255, 0.4)',
+                fontFamily: 'Helvetica Neue',
+                fontWeight: '300',
+                letterSpacing: '0.3px',
+                userSelect: 'none',
+                WebkitUserSelect: 'none'
+              }}>
+                {buildVersion}
+              </div>
             </div>
           </div>
           )}
@@ -1695,10 +1632,11 @@ export default function Home() {
             width: '56px',
             height: '56px',
             borderRadius: '50%',
-            background: 'linear-gradient(135deg, #2a2a2a 0%, #1a1a1a 50%, #2a2a2a 100%)',
-            border: '2px solid rgba(60, 60, 60, 0.8)',
+            background: 'linear-gradient(135deg, #1a0a2a 0%, #0d0518 50%, #1a0a2a 100%)',
+            border: '2px solid rgba(139, 92, 246, 0.3)',
             boxShadow: 
-              '0 2px 6px rgba(0, 0, 0, 0.3),' +
+              '0 2px 6px rgba(0, 0, 0, 0.5),' +
+              '0 0 8px rgba(139, 92, 246, 0.2),' +
               'inset 0 1px 2px rgba(255, 255, 255, 0.05),' +
               'inset 0 -1px 2px rgba(0, 0, 0, 0.5)',
             cursor: 'pointer',
@@ -1711,7 +1649,8 @@ export default function Home() {
           onMouseDown={(e) => {
             e.currentTarget.style.transform = 'scale(0.92)'
             e.currentTarget.style.boxShadow = 
-              '0 1px 3px rgba(0, 0, 0, 0.5),' +
+              '0 1px 3px rgba(0, 0, 0, 0.6),' +
+              '0 0 6px rgba(139, 92, 246, 0.3),' +
               'inset 0 1px 2px rgba(255, 255, 255, 0.03),' +
               'inset 0 -1px 2px rgba(0, 0, 0, 0.6)'
             handleHomeButtonPress()
@@ -1719,7 +1658,8 @@ export default function Home() {
           onMouseUp={(e) => {
             e.currentTarget.style.transform = 'scale(1)'
             e.currentTarget.style.boxShadow = 
-              '0 2px 6px rgba(0, 0, 0, 0.3),' +
+              '0 2px 6px rgba(0, 0, 0, 0.5),' +
+              '0 0 8px rgba(139, 92, 246, 0.2),' +
               'inset 0 1px 2px rgba(255, 255, 255, 0.05),' +
               'inset 0 -1px 2px rgba(0, 0, 0, 0.5)'
             const wasLongPress = longPressOccurredRef.current
@@ -1732,15 +1672,11 @@ export default function Home() {
           onMouseLeave={(e) => {
             e.currentTarget.style.transform = 'scale(1)'
             e.currentTarget.style.boxShadow = 
-              '0 2px 6px rgba(0, 0, 0, 0.3),' +
+              '0 2px 6px rgba(0, 0, 0, 0.5),' +
+              '0 0 8px rgba(139, 92, 246, 0.2),' +
               'inset 0 1px 2px rgba(255, 255, 255, 0.05),' +
               'inset 0 -1px 2px rgba(0, 0, 0, 0.5)'
             handleHomeButtonRelease()
-          }}
-          onContextMenu={(e) => {
-            // Prevent browser's default context menu on long press
-            e.preventDefault()
-            e.stopPropagation()
           }}
           onTouchStart={(e) => {
             e.preventDefault() // Prevent click event and scrolling
@@ -1753,34 +1689,13 @@ export default function Home() {
             e.stopPropagation()
             e.currentTarget.style.transform = 'scale(1)'
             const wasLongPress = longPressOccurredRef.current
-            const popupShown = popupShownDuringTouchRef.current
-            const timerWasRunning = homeButtonPressTimerRef.current !== null
             handleHomeButtonRelease()
-            
-            // If popup was shown during this touch (long press succeeded), don't go home
-            if (popupShown || wasLongPress) {
-              longPressOccurredRef.current = false
-              popupShownDuringTouchRef.current = false
-              return
-            }
-            
-            // If timer was still running, it was a short press - go home after a small delay
-            // This gives the timer a chance to fire if it was very close to 1 second
-            if (timerWasRunning) {
-              setTimeout(() => {
-                // Only go home if popup didn't show (timer didn't fire in time)
-                if (!popupShownDuringTouchRef.current && !longPressOccurredRef.current) {
-                  handleHomeClick()
-                }
-                longPressOccurredRef.current = false
-                popupShownDuringTouchRef.current = false
-              }, 100)
-            } else {
-              // Timer already completed or was cleared - go home immediately
+            // Only go home if it wasn't a long press (long press already showed popup)
+            if (!wasLongPress) {
               handleHomeClick()
-              longPressOccurredRef.current = false
-              popupShownDuringTouchRef.current = false
             }
+            // Reset long press flag
+            longPressOccurredRef.current = false
           }}
           onTouchCancel={(e) => {
             e.preventDefault()
@@ -1788,7 +1703,6 @@ export default function Home() {
             e.currentTarget.style.transform = 'scale(1)'
             handleHomeButtonRelease()
             longPressOccurredRef.current = false
-            popupShownDuringTouchRef.current = false
           }}
           onClick={(e) => {
             // Prevent click from firing if we already handled it via touch
@@ -2064,13 +1978,7 @@ export default function Home() {
 
                 {/* Pen and Paper Button */}
                 <button
-                  onClick={() => {
-                    setShowCustomInput(true)
-                    // Focus the input immediately after state update
-                    setTimeout(() => {
-                      customInputRef.current?.focus()
-                    }, 0)
-                  }}
+                  onClick={() => setShowCustomInput(true)}
                   disabled={isFixingApp || isEnhancingApp}
                   style={{
                     background: 'linear-gradient(135deg, #3498DB 0%, #2980B9 50%, #1F6391 100%)',
@@ -2109,7 +2017,6 @@ export default function Home() {
                 gap: '12px'
               }}>
                 <textarea
-                  ref={customInputRef}
                   value={customCommand}
                   onChange={(e) => setCustomCommand(e.target.value)}
                   onTouchStart={(e) => e.stopPropagation()}
@@ -2315,45 +2222,6 @@ export default function Home() {
                 {appHtml}
               </pre>
             </div>
-            
-            {/* Reset Button - Bottom of code popup */}
-            <button
-              onClick={handleResetApp}
-              disabled={loading}
-              style={{
-                width: '100%',
-                marginTop: '20px',
-                background: 'linear-gradient(135deg, #FF3B30 0%, #FF2D20 50%, #FF1A0D 100%)',
-                color: '#fff',
-                border: 'none',
-                padding: '14px',
-                borderRadius: '10px',
-                fontSize: '16px',
-                fontWeight: '600',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? 0.6 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                boxShadow: '0 2px 8px rgba(255, 59, 48, 0.3)',
-                transition: 'transform 0.1s ease'
-              }}
-              onMouseDown={(e) => {
-                if (!loading) {
-                  e.currentTarget.style.transform = 'scale(0.97)'
-                }
-              }}
-              onMouseUp={(e) => {
-                e.currentTarget.style.transform = 'scale(1)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)'
-              }}
-            >
-              <span>🔄</span>
-              <span>Reset App</span>
-            </button>
           </div>
         </div>
       )}
