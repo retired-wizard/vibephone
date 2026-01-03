@@ -81,9 +81,9 @@ export async function POST(request: Request) {
   
   if (isCustomApp) {
     // Custom app flow: generate name and icon from description
-    if (!body.description || body.description.trim().length < 10) {
+    if (!body.description || body.description.trim().length === 0) {
       return NextResponse.json(
-        { error: 'Description must be at least 10 characters' },
+        { error: 'Description is required' },
         { status: 400 }
       )
     }

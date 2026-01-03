@@ -14,6 +14,7 @@ interface AppMetadata {
   createdAt: number       // Timestamp
   updatedAt?: number      // Optional update timestamp
   isGenerating?: boolean  // True if app is currently being generated
+  originalDescription?: string  // Original description for custom apps (for reset functionality)
 }
 
 interface AppCreationRequest {
@@ -114,8 +115,17 @@ const loadApps = (): AppMetadata[] => {
       return []
     }
     
-    // Validate loaded apps
-    return data.apps.filter(validateAppMetadata)
+    // Validate loaded apps and ensure custom apps have originalDescription
+    return data.apps.filter(validateAppMetadata).map(app => {
+      // For custom apps without originalDescription, set it to current description (migration)
+      if (app.type === 'custom' && !app.originalDescription) {
+        return {
+          ...app,
+          originalDescription: app.description
+        }
+      }
+      return app
+    })
   } catch (error) {
     console.error('Failed to load apps:', error)
     return [] // Graceful degradation
@@ -142,7 +152,7 @@ const saveApps = (apps: AppMetadata[]): boolean => {
 
 const validateDescription = (description: string): boolean => {
   const trimmed = description.trim()
-  return trimmed.length >= 10 && trimmed.length <= 500
+  return trimmed.length > 0 && trimmed.length <= 500
 }
 
 const validateGeneratedHtml = (html: string): boolean => {
@@ -1078,10 +1088,117 @@ export default function Home() {
     }
   }
 
+  const handleResetApp = async () => {
+    // Prevent reset if app is loading or already updating
+    if (!currentApp || isFixingApp || isEnhancingApp || loading) return
+
+    // Don't allow reset for Settings
+    if (currentApp === 'Settings') return
+
+    const appBeingReset = currentApp
+    const targetApp = allApps.find(app => app.name === appBeingReset)
+    
+    if (!targetApp) {
+      setError('App not found')
+      return
+    }
+
+    // Get original description
+    let originalDescription: string | undefined
+    
+    if (targetApp.type === 'custom') {
+      // For custom apps, use stored originalDescription
+      originalDescription = targetApp.originalDescription || targetApp.description
+    } else {
+      // For default apps, use default description
+      originalDescription = DEFAULT_APP_DESCRIPTIONS[appBeingReset]
+    }
+
+    if (!originalDescription) {
+      setError('Original description not found')
+      return
+    }
+
+    // Show loading
+    setLoading(true)
+    setError(null)
+    setAppHtml(null)
+    setLoadingAppName(appBeingReset)
+    setLoadingStartTime(Date.now())
+    setElapsedTime(0)
+
+    try {
+      // Get selected model from localStorage
+      const savedModel = localStorage.getItem('selected_llm_model') || 'google/gemini-3-flash-preview'
+      
+      // Calculate aspect ratio
+      let aspectRatio = '9:16'
+      const screenElement = document.querySelector('.screen-area') as HTMLElement
+      if (screenElement) {
+        const rect = screenElement.getBoundingClientRect()
+        if (rect.width > 0 && rect.height > 0) {
+          const width = rect.width
+          const height = rect.height
+          const gcd = (a: number, b: number): number => b === 0 ? a : gcd(b, a % b)
+          const divisor = gcd(Math.round(width * 1000), Math.round(height * 1000))
+          const aspectWidth = Math.round((width * 1000) / divisor)
+          const aspectHeight = Math.round((height * 1000) / divisor)
+          aspectRatio = `${aspectWidth}:${aspectHeight}`
+        }
+      }
+
+      // Generate app from original description
+      const requestBody = targetApp.type === 'custom'
+        ? { description: originalDescription, aspectRatio, model: savedModel }
+        : { appName: appBeingReset, aspectRatio, model: savedModel }
+
+      const response = await fetch('/api/generate-app', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to reset app')
+      }
+
+      const data = await response.json()
+
+      if (!data.html || !validateGeneratedHtml(data.html)) {
+        throw new Error('Invalid HTML generated')
+      }
+
+      // Cache the reset app
+      localStorage.setItem(`app_${appBeingReset}`, data.html)
+      if (data.description) {
+        localStorage.setItem(`app_${appBeingReset}_desc`, data.description)
+      }
+
+      // Update UI
+      setAppHtml(data.html)
+      setLoading(false)
+      setLoadingAppName(null)
+      setLoadingStartTime(null)
+      setElapsedTime(0)
+      setError(null)
+      
+      // Update loaded apps state
+      setLoadedApps(prev => new Set([...prev, appBeingReset]))
+    } catch (error) {
+      console.error('Error resetting app:', error)
+      setError(error instanceof Error ? error.message : 'Failed to reset app')
+      setLoading(false)
+      setLoadingAppName(null)
+      setLoadingStartTime(null)
+      setElapsedTime(0)
+    }
+  }
+
   const handleCreateApp = async (request: AppCreationRequest) => {
     // 1. Validate input
     if (!validateDescription(request.description)) {
-      setAppCreationError('Description is invalid. Please provide a description (10-500 characters).')
+      setAppCreationError('Description is invalid. Please provide a description (1-500 characters).')
       return
     }
     
@@ -1096,6 +1213,7 @@ export default function Home() {
       icon: '⏳',
       gradient: generateAppGradient('creating'),
       description: request.description,
+      originalDescription: request.description,  // Store original for reset functionality
       type: 'custom',
       createdAt: Date.now(),
       isGenerating: true
@@ -1405,6 +1523,18 @@ export default function Home() {
   }, [isDragging, isLocked, handleUnlock])
 
   // Default apps that are easy for AI to generate - simple, single-purpose utilities
+  // Default app descriptions (matching API route)
+  const DEFAULT_APP_DESCRIPTIONS: Record<string, string> = {
+    'Calculator': 'A fully functional calculator with basic arithmetic operations (+, -, ×, ÷), clear functions, and a numeric display. Should have a modern, dark theme with a grid of buttons.',
+    'Notes': 'A simple note-taking app with a text area for writing and editing notes. Clean, minimal design with focus on text input.',
+    'Clock': 'A digital clock that displays the current time, updating every second. Simple, readable display.',
+    'Stopwatch': 'A stopwatch/timer with start, stop, and reset buttons. Shows elapsed time in MM:SS:MS format. Simple controls with a large time display.',
+    'Todo List': 'A todo list app where users can add tasks and check them off as complete. Simple list interface with add functionality.',
+    'Drawing': 'A simple drawing pad using HTML5 canvas. Allow drawing with mouse/touch, change colors, clear the canvas. Basic drawing tool with brush functionality.',
+    'Coin Flip': 'A coin flip simulator that randomly shows heads or tails when clicked. Fun animation and clear result display.',
+    'Snake': 'A classic Snake game where the player controls a snake that starts with 3 segments and grows as it eats food. Use arrow keys or touch swipes to control direction. Game over when snake hits walls or itself. Score increases with each food eaten.'
+  }
+
   const defaultApps: DefaultApp[] = [
     { name: 'Calculator', icon: '🔢', gradient: 'linear-gradient(135deg, #8E8E93 0%, #7A7A80 100%)' },
     { name: 'Notes', icon: '📝', gradient: 'linear-gradient(135deg, #D4B84A 0%, #C4A83A 100%)' },
@@ -1431,9 +1561,15 @@ export default function Home() {
     return [...defaultAppsWithMetadata, ...customApps]
   }, [customApps])
 
-  // Helper function to check if an app has been loaded
-  const isAppLoaded = (appName: string): boolean => {
+  // Helper function to check if an app's code has been written/generated
+  // Returns true if code exists, false if it hasn't been generated yet
+  const hasAppCode = (appName: string): boolean => {
     if (typeof window === 'undefined') return false
+    
+    // Settings never has code written (it's always rendered directly)
+    if (appName === 'Settings') return false
+    
+    // Check if code has been cached/generated
     return loadedApps.has(appName) || !!localStorage.getItem(`app_${appName}`)
   }
 
@@ -1961,7 +2097,7 @@ export default function Home() {
                       WebkitUserSelect: 'none',
                       MozUserSelect: 'none',
                       msUserSelect: 'none',
-                      opacity: isAppLoaded(app.name) ? 1 : 0.7,
+                      opacity: (app.name === 'Settings' || hasAppCode(app.name)) ? 1 : 0.7,
                       transition: 'opacity 0.3s ease'
                     }}
                   >
@@ -2610,6 +2746,41 @@ export default function Home() {
                   <span>✏️</span>
                   <span>Customize</span>
                 </button>
+
+                {/* Reset Button - Always at the bottom */}
+                <button
+                  onClick={handleResetApp}
+                  disabled={isFixingApp || isEnhancingApp || loading || currentApp === 'Settings'}
+                  style={{
+                    background: 'linear-gradient(135deg, #95A5A6 0%, #7F8C8D 50%, #6C7A7B 100%)',
+                    color: '#fff',
+                    border: 'none',
+                    padding: '16px',
+                    borderRadius: '12px',
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    cursor: (isFixingApp || isEnhancingApp || loading || currentApp === 'Settings') ? 'not-allowed' : 'pointer',
+                    opacity: (isFixingApp || isEnhancingApp || loading || currentApp === 'Settings') ? 0.6 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    boxShadow: '0 2px 8px rgba(149, 165, 166, 0.3)',
+                    transition: 'transform 0.1s ease',
+                    marginTop: '8px'
+                  }}
+                  onMouseDown={(e) => {
+                    if (!isFixingApp && !isEnhancingApp && !loading && currentApp !== 'Settings') {
+                      e.currentTarget.style.transform = 'scale(0.97)'
+                    }
+                  }}
+                  onMouseUp={(e) => {
+                    e.currentTarget.style.transform = 'scale(1)'
+                  }}
+                >
+                  <span>🔄</span>
+                  <span>Reset</span>
+                </button>
               </div>
             ) : (
               <div style={{
@@ -2960,6 +3131,9 @@ export default function Home() {
                       setShowAddAppDialog(false)
                       setNewAppDescription('')
                       setAppCreationError(null)
+                    } else if (e.key === 'Enter' && !e.shiftKey && !isCreatingApp && newAppDescription.trim()) {
+                      e.preventDefault()
+                      handleCreateApp({ description: newAppDescription.trim() })
                     }
                   }}
                 />
